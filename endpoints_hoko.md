@@ -262,3 +262,149 @@ curl --location 'https://hoko.com.co/api/member/stock/quotation' \
     "weight": "1"
 }'
 ```
+
+---
+
+## 3. Endpoints de Inventarios y Productos (`Stocks & Products`)
+
+### 3.1 Listar Stocks (List Stocks)
+Retorna todos los stocks vinculados a la tienda.
+
+* **Método:** `POST`
+* **Ruta:** `/member/stock/list`
+* **Formato:** `multipart/form-data` o `application/json`
+* **Parámetros:**
+  * `search` (opcional): Filtra coincidencias por texto de búsqueda.
+  * `category` (opcional): Filtra resultados por ID de categoría.
+  * `sortBy` (opcional): Criterio de ordenamiento:
+    * `1` => Más reciente
+    * `2` => Más antiguo
+    * `3` => Precio (de mayor a menor)
+    * `4` => Precio (de menor a mayor)
+    * `5` => Más Vendido
+    * `6` => Mayor Stock
+    * `7` => Menor Stock
+  * `stockID` (opcional): Filtra la búsqueda por número de stock similar.
+
+#### Parámetros Importantes en la Respuesta:
+* `id`: ID del stock único (usado al crear la orden).
+* `product_id`: ID del producto vinculado.
+* `amount`: Cantidad de stock disponible en bodega.
+* `minimal_price`: Precio mínimo de venta.
+* `price_by_unit`: Precio sugerido de venta.
+* `measures`: Medidas físicas del paquete.
+
+#### Ejemplo de Solicitud (cURL):
+```bash
+curl --location 'https://hoko.com.co/api/member/stock/list' \
+--form 'search="landing"' \
+--form 'category="8"' \
+--form 'sortBy="1"' \
+--form 'stockID="5424"'
+```
+
+---
+
+### 3.2 Obtener Stock por ID (Stock by ID)
+Obtiene la información principal de un stock, del producto y de las transportadoras vinculadas a la bodega del stock.
+
+* **Método:** `GET`
+* **Ruta:** `/member/stock/detail`
+* **Query Params:**
+  * `id` (obligatorio): ID del stock que se desea consultar.
+
+#### Ejemplo de Solicitud (cURL):
+```bash
+curl --location 'https://hoko.com.co/api/member/stock/detail?id=20'
+```
+
+---
+
+### 3.3 Listar Productos (List Products)
+Retorna todos los productos vinculados a la tienda.
+
+* **Método:** `GET`
+* **Ruta:** `/member/product/list`
+
+#### Parámetros Importantes en la Respuesta:
+* `tax`: Tipo de impuesto:
+  * **Colombia:** `1` => IVA 19%, `2` => IVA exento, `3` => IVA 5%, `4` => IVA excluido.
+  * **Ecuador:** `1` => IVA 12%, `2` => IVA exento.
+* `cost`: Costo del producto.
+* `minimal_price`: Precio mínimo de venta.
+* `price_by_amount`: Precio mayorista.
+* `price_dropshipping`: Precio dropshipping.
+* `price_by_unit`: Precio sugerido de venta.
+
+#### Ejemplo de Solicitud (cURL):
+```bash
+curl --location 'https://hoko.com.co/api/member/product/list'
+```
+
+---
+
+### 3.4 Crear Producto (Create Product)
+Crea y asigna un nuevo producto en la bodega primaria de la tienda. Todos los campos son obligatorios.
+
+* **Método:** `POST`
+* **Ruta:** `/member/product/create`
+* **Formato:** `multipart/form-data`
+* **Parámetros:**
+  * `name`: Nombre del producto (máx. 255 caracteres).
+  * `reference`: Código de referencia alfanumérico sin espacios (máx. 255 caracteres).
+  * `description`: Descripción larga del producto.
+  * `warranty`: Términos de garantía (máx. 255 caracteres).
+  * `height` / `width` / `length` / `weight`: Medidas físicas (enteros).
+  * `cost` / `minimal_price` / `price_by_amount` / `price_dropshipping` / `price_by_unit`: Precios (decimales).
+  * `tax`: Tipo de impuesto (entero según país).
+  * `stock`: Cantidad inicial mayor a 0 (entero).
+
+#### Ejemplo de Solicitud (cURL):
+```bash
+curl --location 'https://hoko.com.co/api/member/product/create' \
+--form 'name="Producto de prueba"' \
+--form 'reference="abc123"' \
+--form 'description="Esto es una prueba"' \
+--form 'warranty="30 dias"' \
+--form 'height="10"' \
+--form 'width="15"' \
+--form 'length="5"' \
+--form 'weight="1"' \
+--form 'cost="20.5"' \
+--form 'minimal_price="50"' \
+--form 'price_by_amount="40"' \
+--form 'price_dropshipping="55.7"' \
+--form 'price_by_unit="75"' \
+--form 'tax="1"' \
+--form 'stock="1"'
+```
+
+---
+
+### 3.5 Actualizar Producto (Update Product)
+Realiza la actualización de un producto vinculado a la tienda.
+
+* **Método:** `GET` / `POST`
+* **Ruta:** `/member/product/update`
+* **Query Params:** Todos los campos de creación son obligatorios (ej. `?product_id=1&name=...&reference=...`).
+
+#### Ejemplo de Solicitud (cURL):
+```bash
+curl --location 'https://hoko.com.co/api/member/product/update?product_id=1&name=Producto%20de%20prueba&reference=abc123&description=Esto%20es%20una%20prueba&warranty=30%20dias&height=10&width=15&length=5&weight=1&cost=20.5&minimal_price=50&price_by_amount=40&price_dropshipping=55.7&price_by_unit=75&tax=1&stock=1'
+```
+
+---
+
+### 3.6 Eliminar Producto (Delete Product)
+Elimina un producto. Acción irreversible.
+
+* **Método:** `DELETE`
+* **Ruta:** `/member/product/delete`
+* **Query Params:**
+  * `product_id`: ID del producto que se desea borrar.
+
+#### Ejemplo de Solicitud (cURL):
+```bash
+curl --location --request DELETE 'https://hoko.com.co/api/member/product/delete?product_id=1'
+```
+

@@ -557,7 +557,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
   const totalItems = order.lineItems.edges.reduce((sum, edge) => sum + edge.node.quantity, 0);
 
   return (
-    <div className="space-y-3 max-w-6xl mx-auto px-4 md:px-6 py-2 animate-in fade-in duration-500">
+    <div className="space-y-3 w-full px-4 md:px-6 py-2 animate-in fade-in duration-500">
       
       {/* Top Navigation */}
       <div className="flex items-center justify-between">

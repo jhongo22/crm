@@ -10,7 +10,7 @@ export default function ShopifyPedidosPage() {
 
   return (
     <OrdersDashboard
-      onViewOrderDetail={(id) => router.push(`/pedidos/${encodeURIComponent(id)}`)}
+      onViewOrderDetail={(id) => router.push(`/pedidos/shopify/${encodeURIComponent(id)}`)}
     />
   );
 }

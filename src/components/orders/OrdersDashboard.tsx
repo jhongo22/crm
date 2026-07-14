@@ -254,7 +254,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
   const activeFilterCount = [filters.status !== 'ACTIVE', filters.payment !== 'ALL', filters.fulfillment !== 'ALL', filters.delivery !== 'ALL', !!filters.dateFrom, !!filters.dateTo, !!filters.tagQuery].filter(Boolean).length;
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto px-4 md:px-6 py-4 animate-in fade-in duration-500">
+    <div className="space-y-4 w-full px-4 md:px-6 py-4 animate-in fade-in duration-500">
 
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -509,15 +509,15 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                       onClick={() => onViewOrderDetail(order.id)}
                       className={rowClasses}
                     >
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-black ${orderStatusStyle.class} ${isCancelledOrVoided ? 'line-through' : ''}`}>{order.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-[11px] font-bold text-text-muted whitespace-nowrap">
+                      <td className="px-4 py-4 text-[11px] font-bold text-text-muted whitespace-nowrap">
                         {formatDateShort(order.createdAt)}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-4">
                         <div className="flex flex-col">
                           <span className="text-xs font-black text-text-primary truncate max-w-[120px]">{clientName}</span>
                           {order.customer?.email && (
@@ -525,40 +525,40 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-[11px] font-bold text-text-muted whitespace-nowrap">
+                      <td className="px-4 py-4 text-[11px] font-bold text-text-muted whitespace-nowrap">
                         {order.channelInformation?.channelDefinition?.channelName || 'Online'}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-4">
                         <span className="text-xs font-black text-text-primary whitespace-nowrap">
                           ${parseFloat(order.totalPriceSet.presentmentMoney.amount).toLocaleString('es-CO')}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-center">
+                      <td className="px-4 py-4 text-center">
                         <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${payment.class}`}>
                           {payment.text}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-center">
+                      <td className="px-4 py-4 text-center">
                         <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${fulfillment.class}`}>
                           {fulfillment.text}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-center">
+                      <td className="px-4 py-4 text-center">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${delivery.class}`}>
                           <Truck size={10} />
                           {delivery.text}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-4">
                         <span className="text-[10px] font-bold text-text-muted flex items-center gap-1">
                           <Package size={10} className="shrink-0" />
                           {deliveryMethod}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-[11px] font-bold text-text-muted text-center">
+                      <td className="px-4 py-4 text-[11px] font-bold text-text-muted text-center">
                         {itemsCount}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-1 max-w-[140px]">
                           {tags.length > 0 ? tags.slice(0, 2).map((tag, i) => (
                             <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-brand-bg text-brand text-[8px] font-black uppercase rounded-md">
@@ -573,7 +573,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-center">
+                      <td className="px-4 py-4 text-center">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

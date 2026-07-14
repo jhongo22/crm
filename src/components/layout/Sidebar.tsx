@@ -16,7 +16,10 @@ import {
   LogOut,
   ShieldCheck,
   Rocket,
-  ClipboardList
+  ClipboardList,
+  Box,
+  Truck,
+  Package
 } from 'lucide-react';
 import { cn } from '../../types';
 
@@ -26,6 +29,7 @@ interface MenuItem {
   icon: any;
   badge?: number;
   adminOnly?: boolean;
+  path?: string;
   subItems?: { id: string; label: string; path: string }[];
 }
 
@@ -47,7 +51,36 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const collapsed = state.sidebarCollapsed;
-  const [ordersOpen, setOrdersOpen] = React.useState(true);
+  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({
+    pedidos: true,
+    ordenes: true
+  });
+  const [walletBalance, setWalletBalance] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (collapsed) return;
+    const fetchBalance = async () => {
+      try {
+        const res = await fetch('/api/hoko', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: '/member/wallet/getBalance',
+            method: 'GET',
+          }),
+        });
+        const data = await res.json();
+        // Handle variations of Hoko balance responses (e.g. data.balance, data.data?.balance, etc.)
+        const balance = data.balance ?? data.data?.balance ?? data.wallet?.balance ?? data.available_balance ?? null;
+        if (balance !== null) {
+          setWalletBalance(Number(balance));
+        }
+      } catch (e) {
+        console.error('Error fetching wallet balance', e);
+      }
+    };
+    fetchBalance();
+  }, [collapsed]);
 
   const groups: { title: string; items: MenuItem[] }[] = [
     {
@@ -58,16 +91,33 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
       ]
     },
     {
-      title: "Órdenes",
+      title: "Pedidos",
       items: [
         {
-          id: 'orders',
-          label: 'Ver todas',
+          id: 'pedidos',
+          label: 'Pedidos',
           icon: ClipboardList,
           subItems: [
             { id: 'orders-shopify', label: 'Shopify', path: '/pedidos/shopify' },
             { id: 'orders-chat', label: 'Chat', path: '/pedidos/chat' },
-            { id: 'orders-hoko', label: 'Hoko', path: '/pedidos/hoko' },
+          ]
+        },
+      ]
+    },
+    {
+      title: "Ordenes",
+      items: [
+        {
+          id: 'ordenes',
+          label: 'Ordenes',
+          icon: Box,
+          subItems: [
+            { id: 'orders-list', label: 'Ordenes', path: '/ordenes' },
+            { id: 'orders-stocks', label: 'Stocks', path: '/ordenes/stocks' },
+            { id: 'orders-productos', label: 'Productos', path: '/ordenes/productos' },
+            { id: 'orders-guias', label: 'Guías', path: '/ordenes/guias' },
+            { id: 'orders-devoluciones', label: 'Devoluciones', path: '/ordenes/devoluciones' },
+            { id: 'orders-novedades', label: 'Novedades', path: '/ordenes/novedades' },
           ]
         },
       ]
@@ -110,10 +160,17 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
   };
 
   return (
-    <aside className={cn(
-      "h-screen sticky top-0 bg-sidebar border-r border-white/10 transition-all duration-300 flex flex-col z-40 shadow-sm",
-      collapsed ? "w-16" : "w-56 lg:w-60"
-    )}>
+    <aside 
+      onClick={() => {
+        if (collapsed) {
+          dispatch({ type: 'SET_SIDEBAR_COLLAPSED', payload: false });
+        }
+      }}
+      className={cn(
+        "h-screen sticky top-0 bg-sidebar border-r border-white/10 transition-all duration-300 flex flex-col z-40 shadow-sm",
+        collapsed ? "w-16 cursor-pointer" : "w-56 lg:w-60"
+      )}
+    >
       <div className="h-14 flex items-center px-4 border-b border-white/10 shrink-0">
          {!collapsed ? (
             <div className="flex items-center gap-2 animate-in fade-in duration-300">
@@ -164,10 +221,10 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
                              if (collapsed) {
                                handleNav(item.id, item.subItems![0].path);
                              } else {
-                               setOrdersOpen(!ordersOpen);
+                               setOpenMenus(prev => ({ ...prev, [item.id]: !prev[item.id] }));
                              }
                            } else {
-                             handleNav(item.id);
+                             handleNav(item.id, item.path);
                            }
                          }}
                          title={collapsed ? item.label : undefined}
@@ -184,7 +241,7 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
                          )}
                          {!collapsed && hasSubItems && (
                            <div className="text-white/40 transition-transform duration-200">
-                             {ordersOpen ? <ChevronLeft size={12} className="rotate-270" /> : <ChevronLeft size={12} />}
+                             {openMenus[item.id] ? <ChevronLeft size={12} className="rotate-270" /> : <ChevronLeft size={12} />}
                            </div>
                          )}
                          {!collapsed && item.badge && !isActive && (
@@ -202,7 +259,7 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
                          )}
                        </button>
 
-                       {!collapsed && hasSubItems && ordersOpen && (
+                       {!collapsed && hasSubItems && openMenus[item.id] && (
                          <div className="pl-9 mt-1 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
                            {item.subItems!.map((sub) => {
                              const isSubActive = pathname === sub.path;
@@ -233,6 +290,19 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
       </div>
 
       <div className="p-2 border-t border-white/10 shrink-0">
+        {!collapsed && walletBalance !== null && (
+          <div className="mb-2 bg-brand/10 p-2.5 rounded-xl border border-brand/20 flex items-center justify-between">
+            <div>
+              <span className="text-[8px] font-black text-brand uppercase tracking-widest block leading-none">Saldo Hoko</span>
+              <span className="text-xs font-bold text-white block mt-1 font-mono">
+                ${walletBalance.toLocaleString('es-CO')} COP
+              </span>
+            </div>
+            <div className="w-6 h-6 rounded-md bg-brand/20 flex items-center justify-center text-brand shrink-0">
+              <span className="text-[10px] font-black font-mono">$</span>
+            </div>
+          </div>
+        )}
         {!collapsed && (
           <div 
             onClick={() => handleNav('settings')}
