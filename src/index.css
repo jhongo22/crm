@@ -1,0 +1,247 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   TEMA: CLARO (Light)
+   Cambiá las variables de abajo para probar distintos looks.
+   ============================================================ */
+:root {
+  /* --- Fondos (Surfaces) --- */
+  --page:        #F1F5F9;
+  --card:        #FFFFFF;
+  --card-alt:    #F8FAFC;
+  --hover:       #E2E8F0;
+  --input:       #E9EDF4;
+  --sidebar:     #162044;
+  --header:      #162044;
+
+  /* --- Texto (Text) --- */
+  --text-primary:    #0F172A;
+  --text-secondary:  #475569;
+  --text-muted:      #94A3B8;
+  --text-placeholder:#AFC1D6;
+
+  /* --- Acento / Marca (Brand) --- */
+  --brand:        #2563EB;
+  --brand-hover:  #1D4ED8;
+  --brand-light:  #3B82F6;
+  --brand-bg:     #EFF6FF;
+  --brand-ring:   rgba(37, 99, 235, 0.15);
+
+  /* --- Estados (Status) --- */
+  --success:      #059669;
+  --success-bg:   #ECFDF5;
+  --warning:      #D97706;
+  --warning-bg:   #FFFBEB;
+  --danger:       #DC2626;
+  --danger-bg:    #FEF2F2;
+  --info:         #6366F1;
+  --info-bg:      #EEF2FF;
+}
+
+/* ============================================================
+   TEMA: OSCURO (Dark)
+   ============================================================ */
+.dark {
+  --page:        #0B1120;
+  --card:        #131C31;
+  --card-alt:    #182239;
+  --hover:       #1E2A45;
+  --input:       #16203A;
+  --sidebar:     #0B1120;
+  --header:      #0B1120;
+
+  --text-primary:    #EDEEF0;
+  --text-secondary:  #9CA3B0;
+  --text-muted:      #5D687D;
+  --text-placeholder:#3D475C;
+
+  --brand:        #60A5FA;
+  --brand-hover:  #3B82F6;
+  --brand-light:  #93C5FD;
+  --brand-bg:     rgba(59, 130, 246, 0.10);
+  --brand-ring:   rgba(96, 165, 250, 0.20);
+
+  --success:      #34D399;
+  --success-bg:   rgba(5, 150, 105, 0.10);
+  --warning:      #FBBF24;
+  --warning-bg:   rgba(217, 119, 6, 0.10);
+  --danger:       #F87171;
+  --danger-bg:    rgba(239, 68, 68, 0.10);
+  --info:         #A5B4FC;
+  --info-bg:      rgba(99, 102, 241, 0.10);
+}
+
+/* ─── Mapeo a Tailwind v4 ─── */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-card-alt: var(--card-alt);
+  --color-hover: var(--hover);
+  --color-input: var(--input);
+  --color-sidebar: var(--sidebar);
+  --color-header: var(--header);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-light: var(--brand-light);
+  --color-brand-bg: var(--brand-bg);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-placeholder: var(--text-placeholder);
+
+  --color-brand-ring: var(--brand-ring);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+}
+
+/* ─── Fondo y texto base ─── */
+body {
+  background-color: var(--page);
+  color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* ============================================================
+   PALETAS ALTERNATIVAS (comentadas)
+   Copiá y pegá una de estas sobre :root para probarla.
+   ============================================================ */
+
+/*
+  ☀️ PALETA: "Alto Contraste" (negro sobre blanco puro)
+  :root {
+    --page:        #FFFFFF;
+    --card:        #FFFFFF;
+    --card-alt:    #FAFAFA;
+    --hover:       #F5F5F5;
+    --input:       #F0F0F0;
+    --text-primary:    #000000;
+    --text-secondary:  #1F1F1F;
+    --text-muted:      #555555;
+    --text-placeholder:#888888;
+    --brand:        #0052CC;
+    --brand-light:  #0066FF;
+    --brand-bg:     #F0F5FF;
+    --brand-ring:   rgba(0, 82, 204, 0.20);
+  }
+*/
+
+/*
+  🌿 PALETA: "Verde Menta" (tonos fríos, relajante)
+  :root {
+    --page:        #F0F5F3;
+    --card:        #FFFFFF;
+    --card-alt:    #F5FAF8;
+    --hover:       #E8F0ED;
+    --input:       #EDF3F0;
+    --text-primary:    #0D1A15;
+    --text-secondary:  #2D4A3E;
+    --text-muted:      #6B8A7C;
+    --text-placeholder:#8DAA9C;
+    --brand:        #0F766E;
+    --brand-light:  #14B8A6;
+    --brand-bg:     #F0FDF9;
+    --brand-ring:   rgba(15, 118, 110, 0.15);
+  }
+*/
+
+/*
+  🌅 PALETA: "Atardecer" (tonos cálidos)
+  :root {
+    --page:        #FBF6F0;
+    --card:        #FFFFFF;
+    --card-alt:    #FDF9F5;
+    --hover:       #F8F0E8;
+    --input:       #F5EDE5;
+    --text-primary:    #1A120C;
+    --text-secondary:  #4A3728;
+    --text-muted:      #8A7664;
+    --text-placeholder:#A69482;
+    --brand:        #C2410C;
+    --brand-light:  #EA580C;
+    --brand-bg:     #FFF7ED;
+    --brand-ring:   rgba(194, 65, 12, 0.15);
+  }
+*/
+
+/*
+  🪐 PALETA: "Espacio" (azules profundos)
+  :root {
+    --page:        #F0F4FA;
+    --card:        #FFFFFF;
+    --card-alt:    #F6F8FD;
+    --hover:       #E8EFF8;
+    --input:        #EDF2F8;
+    --text-primary:    #0B1426;
+    --text-secondary:  #2B3E5C;
+    --text-muted:      #667A9C;
+    --text-placeholder:#889BB8;
+    --brand:        #1E3A5F;
+    --brand-light:  #2E5A8A;
+    --brand-bg:     #F0F5FF;
+    --brand-ring:   rgba(30, 58, 95, 0.15);
+  }
+*/
+
+/* ============================================================
+   ANIMACIONES
+   ============================================================ */
+@layer components {
+  .animate-shake {
+    animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  }
+
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+  }
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-muted) 50%, transparent);
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--brand) 20%, transparent);
+  border-radius: 999px;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "NovaCRM",
+  "description": "Tu CRM inteligente - Gestión completa de clientes, ventas y mensajería.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

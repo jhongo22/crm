@@ -1,0 +1,9 @@
+"use client";
+
+import dynamic from 'next/dynamic';
+
+const Dashboard = dynamic(() => import('../../../components/dashboard/Dashboard').then(m => m.Dashboard), { ssr: false });
+
+export default function DashboardPage() {
+  return <Dashboard />;
+}
