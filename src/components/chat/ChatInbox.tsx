@@ -56,7 +56,7 @@ import { Message, Conversation, Contact } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 const CANNED_RESPONSES = [
-  "Hola, encantado de saludarte. ¿Cómo te puedo ayudar hoy con tu consulta de NovaCRM?",
+  "Hola, encantado de saludarte. ¿Cómo te puedo ayudar hoy con tu consulta de Winners Hub?",
   "¡Es una excelente pregunta! Para darte la información exacta, ¿podrías indicarme tu correo y tu empresa?",
   "Perfecto, acabo de actualizar tu caso. Nuestro equipo técnico revisará los detalles y te responderá en minutos.",
   "Muchas gracias por confirmar. Quedamos a tu entera disposición. ¡Que tengas un excelente día!",
@@ -298,8 +298,8 @@ export function ChatInbox() {
         <div className="mb-4 px-2 py-1">
           <p className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-[0.15em]">Espacio de trabajo</p>
           <div className="flex items-center gap-2 mt-1.5 bg-white dark:bg-slate-900 border border-slate-250/60 dark:border-slate-800 rounded-xl p-2 shadow-sm">
-            <div className="w-5 h-5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-md flex items-center justify-center text-[10px] font-bold text-white uppercase italic">N</div>
-            <span className="text-[11px] font-black truncate text-slate-700 dark:text-slate-200 uppercase tracking-tight">NovaCRM Inc</span>
+            <div className="w-5 h-5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-md flex items-center justify-center text-[10px] font-bold text-white uppercase italic">W</div>
+            <span className="text-[11px] font-black truncate text-slate-700 dark:text-slate-200 uppercase tracking-tight">Winners Hub Inc</span>
           </div>
         </div>
 
@@ -872,8 +872,8 @@ export function ChatInbox() {
                 </div>
              </div>
              <div className="max-w-md space-y-2">
-                <h3 className="text-base font-black dark:text-white italic tracking-tighter uppercase">Estación de Soporte NovaCRM</h3>
-                <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-relaxed">NovaCRM organiza todos tus canales: WhatsApp, Email, Sitio Web e Instagram en una sola interfaz limpia de alto rendimiento.</p>
+                <h3 className="text-base font-black dark:text-white italic tracking-tighter uppercase">Estación de Soporte Winners Hub</h3>
+                <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-relaxed">Winners Hub organiza todos tus canales: WhatsApp, Email, Sitio Web e Instagram en una sola interfaz limpia de alto rendimiento.</p>
                 <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mt-2">{`<< Seleccione una conversación de la izquierda >>`}</p>
              </div>
           </div>

@@ -6,7 +6,7 @@ import { LogIn, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export function Login() {
   const { state, dispatch } = useApp();
-  const [email, setEmail] = useState('admin@novacrm.co');
+   const [email, setEmail] = useState('admin@winnershub.co');
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +38,7 @@ export function Login() {
       await new Promise(resolve => setTimeout(resolve, 1500));
       dispatch({ type: 'SET_USER', payload: user });
     } else {
-      setError('Credenciales inválidas. Intenta con ana@novacrm.co');
+      setError('Credenciales inválidas. Intenta con ana@winnershub.co');
       setIsLoading(false);
     }
   };

@@ -4,8 +4,12 @@ import { AppProvider } from '../context/AppContext';
 import { AuthGuard } from '../components/auth/AuthGuard';
 
 export const metadata = {
-  title: 'CRM Specialist',
-  description: 'CRM especializado para mi negocio',
+  title: 'Winners Hub',
+  description: 'Sistema de gestión de clientes y pedidos - Winners Hub',
+  icons: {
+    icon: '/icono-fabrica-winners-sin-fondo.png',
+    apple: '/icono-fabrica-winners.png',
+  },
 };
 
 export default function RootLayout({

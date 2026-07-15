@@ -8,7 +8,8 @@ import {
   MessageCircle, 
   LayoutDashboard, 
   Trello, 
-  CheckSquare 
+  ClipboardList,
+  Box
 } from 'lucide-react';
 
 interface MobileNavProps {
@@ -20,7 +21,8 @@ const routeMap: Record<string, string> = {
   contacts: '/contacts',
   chat: '/chat',
   pipeline: '/pipeline',
-  tasks: '/tasks',
+  pedidos: '/pedidos',
+  ordenes: '/ordenes',
 };
 
 export function MobileNav({ activeTab }: MobileNavProps) {
@@ -30,8 +32,9 @@ export function MobileNav({ activeTab }: MobileNavProps) {
     { id: 'dashboard', label: 'Inicio', icon: LayoutDashboard },
     { id: 'contacts', label: 'Contactos', icon: Users },
     { id: 'chat', label: 'Mensajes', icon: MessageCircle, badge: 3 },
+    { id: 'pedidos', label: 'Pedidos', icon: ClipboardList },
+    { id: 'ordenes', label: 'Ordenes', icon: Box },
     { id: 'pipeline', label: 'Ventas', icon: Trello },
-    { id: 'tasks', label: 'Tareas', icon: CheckSquare },
   ];
 
   return (

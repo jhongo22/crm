@@ -174,15 +174,19 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
       <div className="h-14 flex items-center px-4 border-b border-white/10 shrink-0">
          {!collapsed ? (
             <div className="flex items-center gap-2 animate-in fade-in duration-300">
-               <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center shadow-lg shadow-brand/10 rotate-3">
-                  <Rocket className="text-white" size={16} />
-               </div>
-                <h1 className="text-lg font-black text-white tracking-tight uppercase italic">Nova<span className="text-blue-300">CRM</span></h1>
+               <img 
+                 src="/icono-fabrica-winners-sin-fondo.png" 
+                 alt="Winners Hub Icon" 
+                 className="w-8 h-8 object-contain"
+               />
+                <h1 className="text-[13px] font-black text-white tracking-tight uppercase italic">Winners<span className="text-blue-300">Hub</span></h1>
             </div>
          ) : (
-            <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center mx-auto shadow-sm rotate-3">
-               <Rocket className="text-white" size={16} />
-            </div>
+            <img 
+              src="/icono-fabrica-winners-sin-fondo.png" 
+              alt="Winners Hub Icon" 
+              className="w-8 h-8 object-contain mx-auto"
+            />
          )}
       </div>
 

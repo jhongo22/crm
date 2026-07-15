@@ -1,10 +1,10 @@
 import { Contact, Deal, User, Conversation, Task } from '../types';
 
 export const USERS: User[] = [
-  { id: 'u1', name: 'Ana García', email: 'ana@novacrm.co', role: 'Supervisor', status: 'En línea', activeConversations: 3, lastAccess: '2024-05-28T09:00:00Z' },
-  { id: 'u2', name: 'Pedro Ruiz', email: 'pedro@novacrm.co', role: 'Agente', status: 'Ocupado', activeConversations: 2, lastAccess: '2024-05-28T08:45:00Z' },
-  { id: 'u3', name: 'Luis Mora', email: 'luis@novacrm.co', role: 'Agente', status: 'Ausente', activeConversations: 2, lastAccess: '2024-05-27T18:30:00Z' },
-  { id: 'u4', name: 'Admin Sistema', email: 'admin@novacrm.co', role: 'Superadmin', status: 'En línea', activeConversations: 0, lastAccess: '2024-05-28T10:15:00Z' },
+  { id: 'u1', name: 'Ana García', email: 'ana@winnershub.co', role: 'Supervisor', status: 'En línea', activeConversations: 3, lastAccess: '2024-05-28T09:00:00Z' },
+  { id: 'u2', name: 'Pedro Ruiz', email: 'pedro@winnershub.co', role: 'Agente', status: 'Ocupado', activeConversations: 2, lastAccess: '2024-05-28T08:45:00Z' },
+  { id: 'u3', name: 'Luis Mora', email: 'luis@winnershub.co', role: 'Agente', status: 'Ausente', activeConversations: 2, lastAccess: '2024-05-27T18:30:00Z' },
+  { id: 'u4', name: 'Admin Sistema', email: 'admin@winnershub.co', role: 'Superadmin', status: 'En línea', activeConversations: 0, lastAccess: '2024-05-28T10:15:00Z' },
 ];
 
 export const CONTACTS: Contact[] = [

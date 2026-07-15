@@ -126,9 +126,14 @@ export default function LoginPage() {
       <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />
 
       <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl p-8 relative z-10">
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 flex flex-col items-center">
+          <img 
+            src="/icono-fabrica-winners-sin-fondo.png" 
+            alt="Winners Hub Logo" 
+            className="w-20 h-20 object-cover border border-violet-500/20 mb-3 shadow-lg shadow-violet-500/10"
+          />
           <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">
-            NovaCRM
+            Winners Hub
           </h1>
           <p className="text-sm text-slate-400 mt-2">
             {isRegistering ? 'Crea una cuenta para comenzar' : 'Inicia sesión para acceder a tu panel'}

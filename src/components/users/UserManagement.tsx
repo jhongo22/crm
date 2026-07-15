@@ -31,7 +31,7 @@ export function UserManagement() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight italic">Gestión de Usuarios</h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">Controla quién tiene acceso y qué puede ver en NovaCRM.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Controla quién tiene acceso y qué puede ver en Winners Hub.</p>
         </div>
         <Button>
           <UserPlus size={18} /> Invitar usuario

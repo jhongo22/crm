@@ -1,6 +1,6 @@
 {
-  "name": "NovaCRM",
-  "description": "Tu CRM inteligente - Gestión completa de clientes, ventas y mensajería.",
+  "name": "WinnersHub",
+  "description": "Tu CRM inteligente - Gestión completa de clientes, ventas y mensajería - Winners Hub.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

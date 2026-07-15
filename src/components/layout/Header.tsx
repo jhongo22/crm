@@ -62,7 +62,7 @@ export function Header({ activeTab }: { activeTab?: string }) {
     <header className="h-14 bg-header sticky top-0 z-30 border-b border-white/10 flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-4 flex-1">
         <h2 className="text-[10px] font-black text-white/60 uppercase tracking-[0.25em] flex items-center gap-2">
-          NovaCRM <span className="opacity-30">/</span> <span className="text-white italic tracking-tighter lowercase text-xs underline decoration-blue-300 decoration-2 underline-offset-4">{activeTab}</span>
+          Winners Hub <span className="opacity-30">/</span> <span className="text-white italic tracking-tighter lowercase text-xs underline decoration-blue-300 decoration-2 underline-offset-4">{activeTab}</span>
         </h2>
 
         <div className="relative w-full max-w-sm group hidden xl:block">
