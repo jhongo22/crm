@@ -120,22 +120,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-page flex items-center justify-center p-4 relative overflow-hidden font-sans transition-colors duration-500">
       {/* Background gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-violet-600/10 blur-[120px]" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-violet-600/5 dark:bg-violet-600/10 blur-[120px]" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600/5 dark:bg-indigo-600/10 blur-[120px]" />
 
-      <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl p-8 relative z-10">
+      <div className="w-full max-w-md bg-card border border-slate-200/60 dark:border-slate-850 rounded-2xl shadow-xl p-8 relative z-10">
         <div className="text-center mb-8 flex flex-col items-center">
           <img 
             src="/icono-fabrica-winners-sin-fondo.png" 
             alt="Winners Hub Logo" 
-            className="w-20 h-20 object-cover border border-violet-500/20 mb-3 shadow-lg shadow-violet-500/10"
+            className="w-20 h-20 object-cover border border-brand/10 mb-3 shadow-lg shadow-brand/5"
           />
-          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold text-text-primary tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 dark:from-violet-400 dark:to-indigo-400 bg-clip-text text-transparent">
             Winners Hub
           </h1>
-          <p className="text-sm text-slate-400 mt-2">
+          <p className="text-sm text-text-secondary mt-2">
             {isRegistering ? 'Crea una cuenta para comenzar' : 'Inicia sesión para acceder a tu panel'}
           </p>
         </div>
@@ -143,8 +143,8 @@ export default function LoginPage() {
         {message && (
           <div className={`p-4 rounded-lg text-sm mb-6 ${
             message.type === 'error' 
-              ? 'bg-rose-500/15 text-rose-400 border border-rose-500/25' 
-              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+              ? 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/25' 
+              : 'bg-emerald-500/15 text-emerald-650 dark:text-emerald-400 border border-emerald-500/25'
           }`}>
             {message.text}
           </div>
@@ -153,7 +153,7 @@ export default function LoginPage() {
         <form onSubmit={handleAuth} className="space-y-5">
           {isRegistering && (
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
                 Nombre Completo
               </label>
               <input
@@ -162,13 +162,13 @@ export default function LoginPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Juan Pérez"
-                className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
               Usuario o Correo Electrónico
             </label>
             <input
@@ -177,12 +177,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu@correo.com o admin"
-              className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+              className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
               Contraseña
             </label>
             <div className="relative">
@@ -192,12 +192,12 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-white transition-colors"
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-text-muted hover:text-text-primary transition-colors"
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -207,19 +207,19 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg py-3 text-sm font-semibold transition-all shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg py-3 text-sm font-semibold transition-all shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-4 cursor-pointer"
           >
             {loading ? 'Procesando...' : isRegistering ? 'Registrarse' : 'Iniciar Sesión'}
           </button>
         </form>
 
-        <div className="mt-8 text-center border-t border-slate-800/60 pt-6">
+        <div className="mt-8 text-center border-t border-slate-200 dark:border-slate-800/60 pt-6">
           <button
             onClick={() => {
               setIsRegistering(!isRegistering);
               setMessage(null);
             }}
-            className="text-sm text-slate-400 hover:text-white transition-colors"
+            className="text-sm text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
           >
             {isRegistering 
               ? '¿Ya tienes cuenta? Inicia sesión' 

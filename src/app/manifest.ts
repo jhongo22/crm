@@ -3,7 +3,7 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Winners Hub',
-    short_name: 'WinnersHub',
+    short_name: 'Winners Hub',
     description: 'Sistema de gestión de clientes y pedidos - Winners Hub',
     start_url: '/dashboard',
     display: 'standalone',

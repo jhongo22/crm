@@ -1,11 +1,11 @@
-# Estado del Proyecto: NovaCRM
+# Estado del Proyecto: Winners Hub
 
-Este documento describe la arquitectura, la configuración actual, el estado del desarrollo y los pasos para el mantenimiento y ejecución de la aplicación **NovaCRM**.
+Este documento describe la arquitectura, la configuración actual, el estado del desarrollo y los pasos para el mantenimiento y ejecución de la aplicación **Winners Hub**.
 
 ---
 
 ## 1. Descripción General
-**NovaCRM** es un prototipo de CRM especializado para comercio electrónico, optimizado para gestionar leads, mensajería de soporte multi-canal, y el seguimiento de pedidos directos desde una tienda en **Shopify**.
+**Winners Hub** es un CRM especializado para comercio electrónico, optimizado para gestionar leads, mensajería de soporte multi-canal, y el seguimiento de pedidos directos desde una tienda en **Shopify**.
 
 El proyecto fue migrado exitosamente desde un entorno de desarrollo **Vite (SPA)** hacia **Next.js (App Router)** para soportar un backend robusto de forma segura, respetando la velocidad y el diseño visual premium.
 
@@ -15,6 +15,7 @@ El proyecto fue migrado exitosamente desde un entorno de desarrollo **Vite (SPA)
 * **Framework principal:** Next.js 16.2.x (App Router)
 * **Librería de UI:** React 19.x (con soporte para Server Components)
 * **Estilos y Diseño:** Tailwind CSS v4 (procesado por PostCSS)
+* **Base de Datos / Backend:** Supabase (Auth, Database y Realtime)
 * **Lenguaje:** TypeScript
 * **Servidor Local / HMR:** Turbopack (Next.js)
 
@@ -24,18 +25,22 @@ El proyecto fue migrado exitosamente desde un entorno de desarrollo **Vite (SPA)
 
 ```
 CRM/
-├── .env                         # Variables de entorno (Token de Shopify, etc.)
+├── .env                         # Variables de entorno (Token de Shopify, Supabase, etc.)
 ├── log.log                      # Archivo de logs del CRM (estilo Laravel)
 ├── next.config.ts               # Configuración de Next.js
 ├── postcss.config.mjs           # Configuración de procesamiento de Tailwind v4
 ├── endpoints_shopify.md         # Documentación de la API de Shopify de referencia
+├── public/                      # Recursos estáticos (Logotipo e iconos de marca)
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx           # Layout principal (HTML shell y AppProvider)
+│   │   ├── layout.tsx           # Layout principal (HTML shell, prevención de flash y AppProvider)
+│   │   ├── manifest.ts          # Manifiesto de la PWA (Configuración móvil)
 │   │   ├── page.tsx             # Punto de entrada SPA protegido con guard de montaje
 │   │   └── api/
-│   │       └── shopify/
-│   │           └── route.ts     # Proxy de API seguro para consultas GraphQL a Shopify
+│   │       ├── shopify/
+│   │       │   └── route.ts     # Proxy de API seguro para consultas GraphQL a Shopify
+│   │       └── hoko/
+│   │           └── route.ts     # Endpoint de integración para Hoko
 │   ├── components/
 │   │   ├── layout/              # Sidebar (colapsable), Header, MobileNav
 │   │   ├── orders/              # OrdersDashboard (KPIs y Tabla) y OrderDetailView
@@ -84,7 +89,28 @@ Se implementó un logger local en `src/utils/logger.ts` que escribe registros en
 
 ---
 
-## 6. Comandos Operativos
+## 6. PWA y Adaptabilidad Móvil (Implementado recientemente)
+* **Manifiesto Móvil (`manifest.ts`):** Configurado para permitir la instalación de la web como app nativa a pantalla completa (`standalone`) en iOS y Android, utilizando la paleta oficial y los iconos en la carpeta pública.
+* **Optimización de Carga Visual (Prevención de Flash):** Añadido un script en línea sincrónico en `<head>` que previene el destello oscuro al arrancar la web, aplicando el tema correspondiente (`light` / `dark`) instantáneamente antes de que el navegador pinte el HTML.
+* **Login Autoadaptativo (`page.tsx`):** La pantalla de login ahora responde dinámicamente al tema preferido, mostrando un look limpio en tema claro y el clásico look de alto rendimiento en modo oscuro.
+* **Menú Móvil Rediseñado (`MobileNav.tsx`):** 
+  - Barra de 4 accesos directos principales en la parte inferior.
+  - Botón **"Más"** que despliega un panel deslizante a pantalla completa con toda la navegación del CRM (contactos, pedidos shopify/chat, stocks, guías, reportes y configuración), organizada por grupos.
+
+---
+
+## 7. Próximos Pasos (Planificación de la Próxima Semana)
+* **Integración Oficial de WhatsApp Cloud API:**
+  - **Configuración de Variables de Entorno:** Integrar `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` y `WHATSAPP_VERIFY_TOKEN` en `.env`.
+  - **Creación de Webhook de Recepción (`api/whatsapp/route.ts`):** 
+    - Crear endpoint `GET` para verificar el handshake de Meta.
+    - Crear endpoint `POST` para parsear los mensajes entrantes (número de teléfono del cliente, nombre, tipo de mensaje y contenido).
+  - **Persistencia en Supabase:** Almacenar los mensajes entrantes en las tablas correspondientes (`crm_conversaciones` y `crm_mensajes`) y activar disparadores de Supabase Realtime para refrescar la bandeja de entrada al instante.
+  - **Integración de Envío en UI:** Habilitar el botón de envío en el chat (`ChatInbox.tsx`) para invocar a la API de Graph de Meta y mandar mensajes de WhatsApp reales de forma bidireccional.
+
+---
+
+## 8. Comandos Operativos
 
 ### Iniciar servidor de desarrollo
 Inicia el entorno de desarrollo local (con Turbopack rápido y HMR configurado).
