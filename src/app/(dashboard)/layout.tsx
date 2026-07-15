@@ -10,7 +10,6 @@ import { cn } from '../../types';
 
 const tabFromPath = (pathname: string): string => {
   const segment = pathname.split('/')[1];
-  if (segment === 'pedidos') return 'orders';
   if (!segment) return 'dashboard';
   return segment;
 };

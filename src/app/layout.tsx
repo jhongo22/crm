@@ -1,14 +1,32 @@
 import React from 'react';
+import type { Metadata, Viewport } from 'next';
 import '../index.css';
 import { AppProvider } from '../context/AppContext';
 import { AuthGuard } from '../components/auth/AuthGuard';
 
-export const metadata = {
+export const viewport: Viewport = {
+  themeColor: '#020617',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
+export const metadata: Metadata = {
   title: 'Winners Hub',
   description: 'Sistema de gestión de clientes y pedidos - Winners Hub',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Winners Hub',
+    startupImage: '/icono-fabrica-winners.png',
+  },
   icons: {
     icon: '/icono-fabrica-winners-sin-fondo.png',
-    apple: '/icono-fabrica-winners.png',
+    apple: [
+      { url: '/icono-fabrica-winners.png', sizes: '192x192', type: 'image/png' },
+    ],
   },
 };
 
