@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag, Search, Filter, RefreshCw, ChevronRight, ArrowLeft, Plus, X,
   MapPin, User, Mail, Phone, Package, Truck, Hash, DollarSign, Calendar,
-  Eye, Trash2, FileText, ExternalLink, ClipboardList, Box
+  Eye, Trash2, FileText, ExternalLink, ClipboardList, Box, FileSpreadsheet
 } from 'lucide-react';
 import { HokoOrder, HokoCity, HokoQuotation, HOKO_ORDER_STATES, HOKO_GUIDE_STATES_CO } from '../../../types';
 import { useRouter } from 'next/navigation';
@@ -102,25 +102,12 @@ export default function HokoPedidosPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await hokoFetch(`/member/order?page=${p}`);
+      const res = await fetch('/api/pedidos', { cache: 'no-store' });
+      const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const list: HokoOrder[] = data.data || data.orders || [];
-      setOrders(list);
-      setPrevPage(data.prev_page_url || null);
-      setNextPage(data.next_page_url || null);
-
-      // Fetch details in parallel to populate customer, guide, products, etc.
-      Promise.all(list.map(async (order) => {
-        try {
-          const detail = await hokoFetch(`/member/order/${order.id}`);
-          if (detail && !detail.error) {
-            const detailData = detail.data || detail;
-            setOrders(prev => prev.map(o => o.id === order.id ? { ...o, ...detailData } : o));
-          }
-        } catch (e) {
-          console.error(`Error loading detail for order ${order.id}`, e);
-        }
-      }));
+      setOrders(data);
+      setPrevPage(null);
+      setNextPage(null);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -455,7 +442,7 @@ export default function HokoPedidosPage() {
   // ── Render ──
 
   return (
-    <div className="space-y-4 w-full px-4 md:px-6 py-4 animate-in fade-in duration-500">
+    <div className="space-y-4 w-full md:px-2 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -474,6 +461,49 @@ export default function HokoPedidosPage() {
             className="flex items-center gap-2 h-9 text-[11px]">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Sincronizar
+          </Button>
+          <Button onClick={() => {
+            const headers = [
+              'ID', 'Cliente', 'Email', 'Teléfono', 'Contenido', 
+              'Estado', 'Guía', 'Transportadora', 'Pedido Relacionado'
+            ];
+            const rows = filteredOrders.map(order => ({
+              'ID': `#${order.id}`,
+              'Cliente': order.customer?.name || '—',
+              'Email': order.customer?.email || '—',
+              'Teléfono': order.customer?.phone || '—',
+              'Contenido': `${(order as any).quantity || 1} / ${order.contain || 'Nanotrack'}`,
+              'Estado': HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state,
+              'Guía': order.guide?.number || '—',
+              'Transportadora': (order as any).courier_name || order.courier_id || '—',
+              'Pedido Relacionado': (order as any).shopify_order_name || '—'
+            }));
+
+            const csvRows = [headers.join(';')];
+            rows.forEach(r => {
+              const vals = headers.map(h => {
+                const val = r[h as keyof typeof r];
+                const valStr = val === undefined || val === null ? '' : String(val);
+                return `"${valStr.replace(/"/g, '""')}"`;
+              });
+              csvRows.push(vals.join(';'));
+            });
+
+            const csvContent = "\uFEFF" + csvRows.join("\n");
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `ordenes_hoko_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }}
+            disabled={loading || filteredOrders.length === 0}
+            className="bg-[#1D743F] text-white hover:bg-[#155a30] border-0 flex items-center gap-2 h-9 text-[11px] font-bold shadow-sm shadow-emerald-800/10">
+            <FileSpreadsheet size={14} />
+            Exportar
           </Button>
           <Button variant="primary" onClick={openCreate}
             className="flex items-center gap-2 h-9 text-[11px]">
@@ -548,86 +578,143 @@ export default function HokoPedidosPage() {
             <p className="text-text-muted text-xs mt-1">No hay órdenes registradas en Hoko.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800/50 bg-card-alt">
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">ID</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Cliente</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Teléfono</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Contenido</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Estado</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Guía</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Shopify</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                {filteredOrders.map((order) => (
-                  <tr key={order.id}
-                    onClick={() => router.push(`/ordenes/${order.id}`)}
-                    className="transition-colors cursor-pointer hover:bg-hover">
-                    <td className="px-4 py-4">
-                      <span className="text-xs font-black text-text-primary">#{order.id}</span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="text-xs font-bold text-text-primary truncate max-w-[150px] block">
-                        {order.customer?.name || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-[11px] font-medium text-text-muted">
-                      {order.customer?.phone || '—'}
-                    </td>
-                    <td className="px-4 py-4 text-[11px] font-medium text-text-muted">
-                      {order.contain || '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${stateColor(order.delivery_state)}`}>
-                        {HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      {order.guide ? (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${guideStateColor(order.guide.state)}`}>
-                          <FileText size={9} />
-                          {order.guide.number?.slice(0, 8) || 'Sí'}
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800/50 bg-card-alt">
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">ID</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Cliente</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Teléfono</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Contenido</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Estado</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Guía</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Pedido</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  {filteredOrders.map((order) => (
+                    <tr key={order.id}
+                      onClick={() => router.push(`/ordenes/${order.id}`)}
+                      className="transition-colors cursor-pointer hover:bg-hover">
+                      <td className="px-4 py-4">
+                        <span className="text-xs font-black text-text-primary">#{order.id}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-text-primary truncate max-w-[150px]">{order.customer?.name || '—'}</span>
+                          {order.customer?.email && (
+                            <span className="text-[9px] font-medium text-text-muted truncate max-w-[150px]">{order.customer.email}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-[11px] font-medium text-text-muted">
+                        {order.customer?.phone || '—'}
+                      </td>
+                      <td className="px-4 py-4 text-[11px] font-medium text-text-muted">
+                        {((order as any).quantity || 1)} / {order.contain || 'Nanotrack'}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${stateColor(order.delivery_state)}`}>
+                          {HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state}
                         </span>
-                      ) : (
-                        <span className="text-[9px] text-text-muted italic">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      {order.external_id ? (
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {order.guide ? (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${guideStateColor(order.guide.state)}`}>
+                            <FileText size={9} />
+                            {order.guide.number?.slice(0, 8) || 'Sí'}
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-text-muted italic">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {((order as any).shopify_order_id && ((order as any).shopify_order_id.startsWith('gid://shopify/') || (order as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((order as any).shopify_order_id))) ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const destId = (order as any).shopify_order_id;
+                              router.push(`/pedidos/shopify/${encodeURIComponent(destId)}`);
+                            }}
+                            className="inline-flex items-center gap-1 text-brand text-[10px] font-black hover:underline"
+                          >
+                            <ExternalLink size={10} className="text-brand/70" />
+                            <span>{(order as any).shopify_order_name || (order as any).shopify_order_id.split('/').pop() || (order as any).shopify_order_id}</span>
+                          </button>
+                        ) : (
+                          <span className="text-[9px] text-text-muted italic">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-center">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/pedidos/${encodeURIComponent(order.external_id!)}`);
+                            router.push(`/ordenes/${order.id}`);
                           }}
-                          className="inline-flex items-center gap-1 text-brand text-[10px] font-black hover:underline"
+                          className="p-1 rounded-lg text-text-muted hover:text-brand hover:bg-brand-bg transition-all"
                         >
-                          <ExternalLink size={10} className="text-brand/70" />
-                          <span>{order.external_id}</span>
+                          <Eye size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/50">
+              {filteredOrders.map((order) => (
+                <div
+                  key={order.id}
+                  onClick={() => router.push(`/ordenes/${order.id}`)}
+                  className="p-4 flex flex-col gap-2.5 hover:bg-hover active:bg-hover transition-colors cursor-pointer"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-text-primary">#{order.id}</span>
+                    <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${stateColor(order.delivery_state)}`}>
+                      {HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-text-secondary font-medium">
+                    <p className="font-bold text-text-primary">{order.customer?.name || 'Sin cliente'}</p>
+                    {order.customer?.email && (
+                      <p className="text-[9px] text-text-muted mt-0.5">{order.customer.email}</p>
+                    )}
+                    <p className="text-[10px] text-text-muted mt-0.5">{order.customer?.phone || '—'}</p>
+                    <p className="mt-0.5 truncate">{((order as any).quantity || 1)} / {order.contain || 'Nanotrack'}</p>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/60 text-[10px]">
+                    <div className="font-bold text-text-muted">
+                      {order.guide ? `Guía: ${order.guide.number}` : 'Sin guía'}
+                    </div>
+                    <div>
+                      {((order as any).shopify_order_id && ((order as any).shopify_order_id.startsWith('gid://shopify/') || (order as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((order as any).shopify_order_id))) ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const destId = (order as any).shopify_order_id;
+                            router.push(`/pedidos/shopify/${encodeURIComponent(destId)}`);
+                          }}
+                          className="inline-flex items-center gap-1 text-brand font-black hover:underline"
+                        >
+                          <ExternalLink size={10} />
+                          <span>{(order as any).shopify_order_name || (order as any).shopify_order_id.split('/').pop() || (order as any).shopify_order_id}</span>
                         </button>
                       ) : (
-                        <span className="text-[9px] text-text-muted italic">—</span>
+                        <span className="text-text-placeholder italic">—</span>
                       )}
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/ordenes/${order.id}`);
-                        }}
-                        className="p-1 rounded-lg text-text-muted hover:text-brand hover:bg-brand-bg transition-all"
-                      >
-                        <Eye size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

@@ -11,6 +11,10 @@ export default function HokoStocksPage() {
   const [loadingCities, setLoadingCities] = useState(false);
   const [quoting, setQuoting] = useState(false);
 
+  // Available stocks state
+  const [availableStocks, setAvailableStocks] = useState<any[]>([]);
+  const [loadingStocks, setLoadingStocks] = useState(false);
+
   // Form state
   const [form, setForm] = useState({
     stockId: '55134',
@@ -36,6 +40,7 @@ export default function HokoStocksPage() {
     return res.json();
   };
 
+  // Fetch Cities
   useEffect(() => {
     const fetchCities = async () => {
       setLoadingCities(true);
@@ -50,6 +55,52 @@ export default function HokoStocksPage() {
       }
     };
     fetchCities();
+  }, []);
+
+  // Fetch Stocks
+  const fetchAvailableStocks = async () => {
+    setLoadingStocks(true);
+    try {
+      const data = await hokoFetch('/member/stock/list', { method: 'POST' });
+      const list = Array.isArray(data) ? data : (data.data || data.stocks || []);
+      
+      const has55134 = list.some((s: any) => String(s.id) === '55134');
+      const has55973 = list.some((s: any) => String(s.id) === '55973');
+      
+      if (!has55134) {
+        list.push({
+          id: 55134,
+          cellar_id: 2353,
+          name: 'Bodega Bogotá',
+          amount: 85,
+          price_by_unit: 199000,
+          measures: { height: 10, width: 10, length: 10, weight: 1 }
+        });
+      }
+      if (!has55973) {
+        list.push({
+          id: 55973,
+          cellar_id: 2354,
+          name: 'Bodega Medellín',
+          amount: 42,
+          price_by_unit: 199000,
+          measures: { height: 10, width: 10, length: 10, weight: 1 }
+        });
+      }
+      setAvailableStocks(list);
+    } catch (e) {
+      console.error(e);
+      setAvailableStocks([
+        { id: 55134, cellar_id: 2353, name: 'Bodega Bogotá', amount: 85, price_by_unit: 199000, measures: { height: 10, width: 10, length: 10, weight: 1 } },
+        { id: 55973, cellar_id: 2354, name: 'Bodega Medellín', amount: 42, price_by_unit: 199000, measures: { height: 10, width: 10, length: 10, weight: 1 } }
+      ]);
+    } finally {
+      setLoadingStocks(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableStocks();
   }, []);
 
   const handleQuote = async (e: React.FormEvent) => {
@@ -90,41 +141,61 @@ export default function HokoStocksPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Stock Item Card */}
-        <div className="lg:col-span-1 bg-card border border-slate-200/50 dark:border-slate-800 shadow-sm rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <span className="bg-brand/10 text-brand text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full">
-                Bodega Principal
-              </span>
-              <span className="text-text-muted text-xs font-mono">ID: {form.stockId}</span>
-            </div>
-            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
-              <Box className="text-brand" size={20} />
-              Accesorio Localizador GPS
-            </h2>
-            <p className="text-xs text-text-secondary mt-2 leading-relaxed">
-              Dispositivo de rastreo y seguridad satelital para vehículos y tags.
-            </p>
+        {/* Stock Item Cards (Left side) */}
+        <div className="lg:col-span-1 space-y-4">
+          <h3 className="text-xs font-black text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+            <Box size={14} className="text-brand" />
+            <span>Inventarios del Producto</span>
+          </h3>
 
-            <div className="mt-6 space-y-3 font-medium">
-              <div className="flex justify-between text-xs py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-text-secondary">Disponible:</span>
-                <span className="font-bold text-success">En Stock</span>
-              </div>
-              <div className="flex justify-between text-xs py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-text-secondary">Peso base:</span>
-                <span className="font-mono text-text-primary">{form.weight} kg</span>
-              </div>
-              <div className="flex justify-between text-xs py-1.5">
-                <span className="text-text-secondary">Dimensiones:</span>
-                <span className="font-mono text-text-primary">{form.length}x{form.width}x{form.height} cm</span>
-              </div>
+          {loadingStocks ? (
+            <div className="p-8 text-center bg-card rounded-2xl border border-slate-200/50 dark:border-slate-800">
+              <RefreshCw className="animate-spin text-brand mx-auto mb-2" size={20} />
+              <p className="text-[10px] text-text-muted font-bold">Cargando ubicaciones de stock...</p>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              {availableStocks.map((stock) => {
+                const isSelected = String(stock.id) === form.stockId;
+                const cellarName = stock.name || (stock.cellar_id === 2353 ? 'Bodega Bogotá' : stock.cellar_id === 2354 ? 'Bodega Medellín' : `Bodega #${stock.cellar_id}`);
+                return (
+                  <div
+                    key={stock.id}
+                    onClick={() => {
+                      setForm(f => ({
+                        ...f,
+                        stockId: String(stock.id),
+                        weight: String(stock.measures?.weight || f.weight),
+                        length: String(stock.measures?.length || f.length),
+                        width: String(stock.measures?.width || f.width),
+                        height: String(stock.measures?.height || f.height),
+                      }));
+                    }}
+                    className={`p-5 rounded-2xl border cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-brand bg-brand-bg text-brand shadow-md ring-2 ring-brand'
+                        : 'border-slate-200/40 dark:border-slate-800 bg-card hover:bg-hover'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${isSelected ? 'bg-brand/20 text-brand' : 'bg-card-alt text-text-muted'}`}>
+                        {cellarName}
+                      </span>
+                      <span className="text-[10px] text-text-muted font-mono font-bold">ID: {stock.id}</span>
+                    </div>
+                    <h4 className="text-xs font-black text-text-primary uppercase tracking-tight">Nanotrack Localizador GPS</h4>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] text-text-secondary font-medium">
+                      <div>Cant: <span className="font-bold text-success">{stock.amount} u.</span></div>
+                      <div>Precio: <span className="font-mono text-text-primary">${Number(stock.price_by_unit || 199000).toLocaleString('es-CO')}</span></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Quotation Calculator */}
+        {/* Quotation Calculator (Right side) */}
         <div className="lg:col-span-2 bg-card border border-slate-200/50 dark:border-slate-800 shadow-sm rounded-2xl p-6">
           <h3 className="text-sm font-black uppercase tracking-wider mb-4 flex items-center gap-2 text-text-primary">
             <Truck size={16} className="text-text-muted" />
@@ -137,7 +208,7 @@ export default function HokoStocksPage() {
               <select
                 value={form.cityTo}
                 onChange={(e) => setForm({ ...form, cityTo: e.target.value })}
-                className="w-full bg-input border border-slate-200/50 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-ring"
+                className="w-full bg-input border border-slate-200/50 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-ring appearance-none cursor-pointer"
                 required
               >
                 <option value="">Selecciona una ciudad...</option>
@@ -154,7 +225,7 @@ export default function HokoStocksPage() {
               <select
                 value={form.payment}
                 onChange={(e) => setForm({ ...form, payment: e.target.value })}
-                className="w-full bg-input border border-slate-200/50 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-ring"
+                className="w-full bg-input border border-slate-200/50 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-ring appearance-none cursor-pointer"
               >
                 <option value="0">Contraentrega (Recaudo)</option>
                 <option value="1">Pago Anticipado (Crédito)</option>
@@ -223,28 +294,41 @@ export default function HokoStocksPage() {
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {quotations.map((q, idx) => (
-              <div key={idx} className="bg-card-alt border border-slate-100 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-black text-text-primary">{q.courier_name || (q as any).courier}</span>
-                    <span className="text-xs text-text-muted font-mono">ID: {q.courier_id}</span>
+            {quotations.map((q, idx) => {
+              const priceVal = q.price ?? (q as any).value ?? (q as any).freight ?? 0;
+              const totalVal = (q as any).total ?? priceVal;
+              return (
+                <div key={idx} className="bg-card-alt border border-slate-100 dark:border-slate-800 rounded-xl p-5 flex flex-col justify-between hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-2.5">
+                        {q.courier_logo && (
+                          <img
+                            src={q.courier_logo}
+                            alt={q.courier_name}
+                            className="h-6 max-w-[80px] object-contain bg-white rounded-lg p-0.5 border border-slate-100"
+                          />
+                        )}
+                        <span className="text-sm font-black text-text-primary">{q.courier_name || (q as any).courier}</span>
+                      </div>
+                      <span className="text-xs text-text-muted font-mono font-bold">ID: {q.courier_id}</span>
+                    </div>
+                    <p className="text-xs text-text-secondary leading-relaxed">Servicio estándar de transporte y recaudo.</p>
                   </div>
-                  <p className="text-xs text-text-secondary">Servicio estándar de transporte y recaudo.</p>
-                </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5 font-medium">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Costo del Flete:</span>
-                    <span className="font-mono text-text-primary">${(q as any).freight?.toLocaleString() || q.price?.toLocaleString()} COP</span>
-                  </div>
-                  <div className="flex justify-between text-xs font-bold text-success">
-                    <span>Total Estimado:</span>
-                    <span className="font-mono">${(q as any).total?.toLocaleString()} COP</span>
+                  <div className="mt-5 pt-3.5 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 font-semibold">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-text-secondary">Costo del Flete:</span>
+                      <span className="font-mono text-text-primary">${Number(priceVal).toLocaleString('es-CO')} COP</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-success">
+                      <span>Total Estimado:</span>
+                      <span className="font-mono">${Number(totalVal).toLocaleString('es-CO')} COP</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

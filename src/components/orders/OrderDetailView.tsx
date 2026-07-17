@@ -36,6 +36,46 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     setLoading(true);
     setErrorMessage(null);
     try {
+      let resolvedId = orderId;
+      
+      // If the ID is a custom string like "cliente_tienda_pedido_1021", resolve its real GID first
+      if (!resolvedId.startsWith('gid://shopify/')) {
+        const matches = resolvedId.match(/(\d+)$/);
+        const orderNum = matches ? matches[1] : resolvedId;
+        
+        const searchRes = await fetch('/api/shopify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `
+              query getOrderByQuery($query: String!) {
+                orders(first: 1, query: $query) {
+                  edges {
+                    node {
+                      id
+                    }
+                  }
+                }
+              }
+            `,
+            variables: { query: `name:#${orderNum} OR name:${orderNum}` }
+          })
+        });
+        const searchData = await searchRes.json();
+        const foundOrder = searchData?.data?.orders?.edges?.[0]?.node;
+        if (foundOrder?.id) {
+          resolvedId = foundOrder.id;
+        } else {
+          if (/^\d+$/.test(orderNum)) {
+            resolvedId = `gid://shopify/Order/${orderNum}`;
+          } else {
+            setErrorMessage(`No se pudo encontrar el pedido "${orderId}" en Shopify.`);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const response = await fetch('/api/shopify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -173,7 +213,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
               }
             }
           `,
-          variables: { id: orderId }
+          variables: { id: resolvedId }
         })
       });
       const data = await response.json();

@@ -282,6 +282,8 @@ export interface HokoQuotation {
   courier_name: string;
   price: number;
   delivered_days: string;
+  courier_logo?: string;
+  value?: number;
 }
 
 export const HOKO_ORDER_STATES: Record<string, string> = {

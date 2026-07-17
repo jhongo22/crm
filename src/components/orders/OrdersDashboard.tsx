@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, ShoppingBag, RefreshCw, ChevronRight, Filter, X, Tag, Package, Truck, Hash } from 'lucide-react';
+import { Search, ShoppingBag, RefreshCw, ChevronRight, Filter, X, Tag, Package, Truck, Hash, FileSpreadsheet } from 'lucide-react';
 import { ShopifyOrder } from '../../types';
 import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
+import { useRouter } from 'next/navigation';
 
 interface OrdersDashboardProps {
   onViewOrderDetail: (id: string) => void;
@@ -13,11 +14,13 @@ interface OrdersDashboardProps {
 type OrderStatus = 'ACTIVE' | 'CANCELLED' | 'VOIDED' | 'ARCHIVED';
 
 export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
+  const router = useRouter();
   const [orders, setOrders] = useState<ShopifyOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [hokoMappings, setHokoMappings] = useState<Map<string, string>>(new Map());
 
   const [filters, setFilters] = useState({
     status: 'ACTIVE' as OrderStatus | 'ALL',
@@ -123,6 +126,18 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
     return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
   };
 
+  const getHokoOrderId = (order: ShopifyOrder) => {
+    const cleanId = order.id.toLowerCase();
+    const numId = order.id.split('/').pop()?.toLowerCase();
+    const name = order.name.toLowerCase();
+    const nameNoHash = order.name.replace('#', '').toLowerCase();
+
+    return hokoMappings.get(cleanId) ||
+           (numId ? hokoMappings.get(numId) : null) ||
+           hokoMappings.get(name) ||
+           hokoMappings.get(nameNoHash);
+  };
+
   const fetchOrders = async () => {
     setLoading(true);
     try {
@@ -160,6 +175,34 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                       firstName
                       lastName
                       email
+                      phone
+                    }
+                    shippingAddress {
+                      address1
+                      address2
+                      city
+                      province
+                      zip
+                      country
+                      phone
+                    }
+                    subtotalPriceSet {
+                      presentmentMoney {
+                        amount
+                        currencyCode
+                      }
+                    }
+                    totalShippingPriceSet {
+                      presentmentMoney {
+                        amount
+                        currencyCode
+                      }
+                    }
+                    totalTaxSet {
+                      presentmentMoney {
+                        amount
+                        currencyCode
+                      }
                     }
                     channelInformation {
                       channelDefinition {
@@ -208,6 +251,37 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
         setConnected(true);
       } else {
         setConnected(false);
+      }
+
+      // Fetch local/Hoko orders to map Shopify ID to Hoko ID
+      try {
+        const resPedidos = await fetch('/api/pedidos', { cache: 'no-store' });
+        const dataPedidos = await resPedidos.json();
+        if (Array.isArray(dataPedidos)) {
+          const mappings = new Map<string, string>();
+          dataPedidos.forEach((p: any) => {
+            if (p.id) {
+              if (p.shopify_order_id) {
+                const lowerShopifyId = String(p.shopify_order_id).toLowerCase();
+                mappings.set(lowerShopifyId, String(p.id));
+                
+                const numOnly = lowerShopifyId.split('/').pop();
+                if (numOnly) {
+                  mappings.set(numOnly, String(p.id));
+                }
+                
+                const matches = lowerShopifyId.match(/(\d+)$/);
+                if (matches) {
+                  mappings.set(matches[1], String(p.id));
+                  mappings.set(`#${matches[1]}`, String(p.id));
+                }
+              }
+            }
+          });
+          setHokoMappings(mappings);
+        }
+      } catch (e) {
+        console.error('Error fetching Hoko mappings:', e);
       }
     } catch (error) {
       console.error('Error fetching Shopify orders:', error);
@@ -278,15 +352,98 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={fetchOrders}
-          disabled={loading}
-          className="flex items-center gap-2 border-slate-200/50 dark:border-slate-800"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          <span>Sincronizar</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={fetchOrders}
+            disabled={loading}
+            className="flex items-center gap-2 border-slate-200/50 dark:border-slate-800"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <span>Sincronizar</span>
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              const headers = [
+                'Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono', 
+                'Dirección Envío', 'Ciudad Envío', 'Provincia Envío', 'País Envío', 'Teléfono Envío',
+                'Canal', 'Subtotal', 'Envío Cobrado', 'Impuestos', 'Total', 
+                'Estado Pago', 'Estado Prep', 'Estado Entrega', 'Método Envío', 'Hoko ID'
+              ];
+              const rows = filteredOrders.map(order => {
+                const payment = getFinancialStatusLabel(order.displayFinancialStatus);
+                const fulfillment = getFulfillmentStatusLabel(order.displayFulfillmentStatus);
+                const delivery = getDeliveryStatus(order);
+                const clientName = order.customer
+                  ? `${order.customer.firstName} ${order.customer.lastName}`
+                  : 'Sin cliente';
+                
+                // Format shipping address
+                const sa = order.shippingAddress;
+                const shippingAddressStr = sa ? `${sa.address1 || ''} ${sa.address2 || ''}`.trim() : '—';
+                
+                const subtotal = (order as any).subtotalPriceSet?.presentmentMoney?.amount || '0';
+                const shippingPrice = (order as any).totalShippingPriceSet?.presentmentMoney?.amount || '0';
+                const tax = (order as any).totalTaxSet?.presentmentMoney?.amount || '0';
+                const price = order.totalPriceSet?.presentmentMoney?.amount || '0';
+                const currency = order.totalPriceSet?.presentmentMoney?.currencyCode || 'COP';
+                
+                const hokoId = getHokoOrderId(order) || '—';
+                const deliveryMethod = getDeliveryMethod(order);
+
+                return {
+                  'Pedido': order.name,
+                  'Fecha': new Date(order.createdAt).toLocaleString('es-CO'),
+                  'Cliente': clientName,
+                  'Email': order.customer?.email || '—',
+                  'Teléfono': order.customer?.phone || '—',
+                  'Dirección Envío': shippingAddressStr,
+                  'Ciudad Envío': sa?.city || '—',
+                  'Provincia Envío': sa?.province || '—',
+                  'País Envío': sa?.country || '—',
+                  'Teléfono Envío': sa?.phone || '—',
+                  'Canal': order.channelInformation?.channelDefinition?.channelName || 'Online',
+                  'Subtotal': `${subtotal} ${currency}`,
+                  'Envío Cobrado': `${shippingPrice} ${currency}`,
+                  'Impuestos': `${tax} ${currency}`,
+                  'Total': `${price} ${currency}`,
+                  'Estado Pago': payment.text,
+                  'Estado Prep': fulfillment.text,
+                  'Estado Entrega': delivery.text,
+                  'Método Envío': deliveryMethod,
+                  'Hoko ID': hokoId
+                };
+              });
+
+              const csvRows = [headers.join(';')];
+              rows.forEach(r => {
+                const vals = headers.map(h => {
+                  const val = r[h as keyof typeof r];
+                  const valStr = val === undefined || val === null ? '' : String(val);
+                  return `"${valStr.replace(/"/g, '""')}"`;
+                });
+                csvRows.push(vals.join(';'));
+              });
+
+              const csvContent = "\uFEFF" + csvRows.join("\n");
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.setAttribute("href", url);
+              link.setAttribute("download", `pedidos_shopify_${new Date().toISOString().slice(0,10)}.csv`);
+              link.style.visibility = 'hidden';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            disabled={loading || filteredOrders.length === 0}
+            className="bg-[#1D743F] text-white hover:bg-[#155a30] border-0 flex items-center gap-2 h-9 text-[11px] font-bold shadow-sm shadow-emerald-800/10 px-3 rounded-lg"
+          >
+            <FileSpreadsheet size={14} />
+            <span>Exportar</span>
+          </Button>
+        </div>
       </div>
 
       {/* Metric Cards */}
@@ -458,138 +615,230 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800/50 bg-card-alt">
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Pedido</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Fecha</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Cliente</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Canal</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Total</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Pago</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Prep.</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Entrega</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Envío</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Arts.</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Etiquetas</th>
-                  <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                {filteredOrders.map((order) => {
-                  const payment = getFinancialStatusLabel(order.displayFinancialStatus);
-                  const fulfillment = getFulfillmentStatusLabel(order.displayFulfillmentStatus);
-                  const delivery = getDeliveryStatus(order);
-                  const deliveryMethod = getDeliveryMethod(order);
-                  const orderStatus = getOrderStatus(order);
-                  const orderStatusStyle = getOrderStatusLabel(orderStatus);
-                  const clientName = order.customer
-                    ? `${order.customer.firstName} ${order.customer.lastName}`
-                    : 'Sin cliente';
-                  const itemsCount = order.lineItems.edges.reduce((sum, item) => sum + item.node.quantity, 0);
-                  const tags: string[] = Array.isArray(order.tags)
-                    ? order.tags
-                    : order.tags
-                      ? order.tags.split(',').map(t => t.trim()).filter(Boolean)
-                      : [];
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800/50 bg-card-alt">
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Pedido</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Fecha</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Cliente</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Canal</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Total</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Pago</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Prep.</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Entrega</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Envío</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Arts.</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Etiquetas</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  {filteredOrders.map((order) => {
+                    const payment = getFinancialStatusLabel(order.displayFinancialStatus);
+                    const fulfillment = getFulfillmentStatusLabel(order.displayFulfillmentStatus);
+                    const delivery = getDeliveryStatus(order);
+                    const deliveryMethod = getDeliveryMethod(order);
+                    const orderStatus = getOrderStatus(order);
+                    const orderStatusStyle = getOrderStatusLabel(orderStatus);
+                    const clientName = order.customer
+                      ? `${order.customer.firstName} ${order.customer.lastName}`
+                      : 'Sin cliente';
+                    const itemsCount = order.lineItems.edges.reduce((sum, item) => sum + item.node.quantity, 0);
+                    const tags: string[] = Array.isArray(order.tags)
+                      ? order.tags
+                      : order.tags
+                        ? order.tags.split(',').map(t => t.trim()).filter(Boolean)
+                        : [];
 
-                  const isCancelledOrVoided = orderStatus === 'CANCELLED' || orderStatus === 'VOIDED';
-                  const isArchived = orderStatus === 'ARCHIVED';
-                  const rowClasses = [
-                    'transition-colors cursor-pointer group',
-                    isCancelledOrVoided ? 'opacity-60 hover:opacity-80' : '',
-                    isArchived ? 'opacity-40 hover:opacity-60' : '',
-                    !isCancelledOrVoided && !isArchived ? 'hover:bg-hover' : ''
-                  ].filter(Boolean).join(' ');
+                    const isCancelledOrVoided = orderStatus === 'CANCELLED' || orderStatus === 'VOIDED';
+                    const isArchived = orderStatus === 'ARCHIVED';
+                    const rowClasses = [
+                      'transition-colors cursor-pointer group',
+                      isCancelledOrVoided ? 'opacity-60 hover:opacity-80' : '',
+                      isArchived ? 'opacity-40 hover:opacity-60' : '',
+                      !isCancelledOrVoided && !isArchived ? 'hover:bg-hover' : ''
+                    ].filter(Boolean).join(' ');
 
-                  return (
-                    <tr
-                      key={order.id}
-                      onClick={() => onViewOrderDetail(order.id)}
-                      className={rowClasses}
-                    >
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-black ${orderStatusStyle.class} ${isCancelledOrVoided ? 'line-through' : ''}`}>{order.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-[11px] font-bold text-text-muted whitespace-nowrap">
-                        {formatDateShort(order.createdAt)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-black text-text-primary truncate max-w-[120px]">{clientName}</span>
-                          {order.customer?.email && (
-                            <span className="text-[9px] font-medium text-text-muted truncate max-w-[120px]">{order.customer.email}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-[11px] font-bold text-text-muted whitespace-nowrap">
-                        {order.channelInformation?.channelDefinition?.channelName || 'Online'}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-xs font-black text-text-primary whitespace-nowrap">
-                          ${parseFloat(order.totalPriceSet.presentmentMoney.amount).toLocaleString('es-CO')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${payment.class}`}>
-                          {payment.text}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${fulfillment.class}`}>
-                          {fulfillment.text}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${delivery.class}`}>
-                          <Truck size={10} />
-                          {delivery.text}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-[10px] font-bold text-text-muted flex items-center gap-1">
-                          <Package size={10} className="shrink-0" />
-                          {deliveryMethod}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-[11px] font-bold text-text-muted text-center">
-                        {itemsCount}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-1 max-w-[140px]">
-                          {tags.length > 0 ? tags.slice(0, 2).map((tag, i) => (
-                            <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-brand-bg text-brand text-[8px] font-black uppercase rounded-md">
-                              <Tag size={8} />
-                              {tag}
+                    return (
+                      <tr
+                        key={order.id}
+                        onClick={() => onViewOrderDetail(order.id)}
+                        className={rowClasses}
+                      >
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-black ${orderStatusStyle.class} ${isCancelledOrVoided ? 'line-through' : ''}`}>{order.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-[11px] font-bold text-text-muted whitespace-nowrap">
+                          {formatDateShort(order.createdAt)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-black text-text-primary truncate max-w-[120px]">{clientName}</span>
+                            {order.customer?.email && (
+                              <span className="text-[9px] font-medium text-text-muted truncate max-w-[120px]">{order.customer.email}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-[11px] font-bold text-text-muted whitespace-nowrap">
+                          {order.channelInformation?.channelDefinition?.channelName || 'Online'}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-xs font-black text-text-primary whitespace-nowrap">
+                            ${parseFloat(order.totalPriceSet.presentmentMoney.amount).toLocaleString('es-CO')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${payment.class}`}>
+                            {payment.text}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${fulfillment.class}`}>
+                            {fulfillment.text}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${delivery.class}`}>
+                            <Truck size={10} />
+                            {delivery.text}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-text-muted flex items-center gap-1">
+                              <Package size={10} className="shrink-0" />
+                              {deliveryMethod}
                             </span>
-                          )) : (
-                            <span className="text-[9px] text-text-placeholder italic">—</span>
-                          )}
-                          {tags.length > 2 && (
-                            <span className="text-[8px] font-black text-text-muted">+{tags.length - 2}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onViewOrderDetail(order.id);
-                          }}
-                          className="p-1 rounded-lg text-text-muted hover:text-brand hover:bg-brand-bg transition-all"
-                        >
-                          <ChevronRight size={14} className="transform group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            {(() => {
+                              const hokoId = getHokoOrderId(order);
+                              return hokoId ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/ordenes/${hokoId}`);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-brand text-[9px] font-black hover:underline"
+                                >
+                                  <Truck size={8} />
+                                  <span>Hoko: #{hokoId}</span>
+                                </button>
+                              ) : null;
+                            })()}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-[11px] font-bold text-text-muted text-center">
+                          {itemsCount}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap gap-1 max-w-[140px]">
+                            {tags.length > 0 ? tags.slice(0, 2).map((tag, i) => (
+                              <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-brand-bg text-brand text-[8px] font-black uppercase rounded-md">
+                                <Tag size={8} />
+                                {tag}
+                              </span>
+                            )) : (
+                              <span className="text-[9px] text-text-placeholder italic">—</span>
+                            )}
+                            {tags.length > 2 && (
+                              <span className="text-[8px] font-black text-text-muted">+{tags.length - 2}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onViewOrderDetail(order.id);
+                            }}
+                            className="p-1 rounded-lg text-text-muted hover:text-brand hover:bg-brand-bg transition-all"
+                          >
+                            <ChevronRight size={14} className="transform group-hover:translate-x-0.5 transition-transform" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/50">
+              {filteredOrders.map((order) => {
+                const payment = getFinancialStatusLabel(order.displayFinancialStatus);
+                const fulfillment = getFulfillmentStatusLabel(order.displayFulfillmentStatus);
+                const delivery = getDeliveryStatus(order);
+                const orderStatus = getOrderStatus(order);
+                const orderStatusStyle = getOrderStatusLabel(orderStatus);
+                const clientName = order.customer
+                  ? `${order.customer.firstName} ${order.customer.lastName}`
+                  : 'Sin cliente';
+                const itemsCount = order.lineItems.edges.reduce((sum, item) => sum + item.node.quantity, 0);
+                const isCancelledOrVoided = orderStatus === 'CANCELLED' || orderStatus === 'VOIDED';
+
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => onViewOrderDetail(order.id)}
+                    className="p-4 flex flex-col gap-2.5 hover:bg-hover active:bg-hover transition-colors cursor-pointer"
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className={`text-xs font-black ${orderStatusStyle.class} ${isCancelledOrVoided ? 'line-through' : ''}`}>
+                        {order.name}
+                      </span>
+                      <span className="text-xs font-black text-text-primary">
+                        ${parseFloat(order.totalPriceSet.presentmentMoney.amount).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-[11px] text-text-secondary font-medium">
+                      <div>
+                        <p className="font-bold text-text-primary">{clientName}</p>
+                        <p className="text-[10px] text-text-muted mt-0.5">{formatDateShort(order.createdAt)} | {order.channelInformation?.channelDefinition?.channelName || 'Online'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p>{itemsCount} art.</p>
+                        <p className="text-[10px] text-text-muted mt-0.5">{getDeliveryMethod(order)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${payment.class}`}>
+                        {payment.text}
+                      </span>
+                      <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${fulfillment.class}`}>
+                        {fulfillment.text}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${delivery.class}`}>
+                        <Truck size={10} />
+                        {delivery.text}
+                      </span>
+                      {(() => {
+                        const hokoId = getHokoOrderId(order);
+                        return hokoId ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/ordenes/${hokoId}`);
+                            }}
+                            className="inline-flex items-center gap-1 bg-brand/20 text-brand px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full hover:bg-brand/30"
+                          >
+                            <Truck size={10} />
+                            <span>Hoko: #{hokoId}</span>
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 

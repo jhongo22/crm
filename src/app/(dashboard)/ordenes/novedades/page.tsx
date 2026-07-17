@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Search, RefreshCw, MessageSquare, CheckCircle, ChevronRight, User, Phone, MapPin } from 'lucide-react';
+import { AlertTriangle, Search, RefreshCw, MessageSquare, CheckCircle, ChevronRight, User, Phone, MapPin, ExternalLink } from 'lucide-react';
 import { HokoOrder } from '../../../../types';
 import { Button } from '../../../../components/shared/Button';
+import { useRouter } from 'next/navigation';
 
 export default function HokoNovedadesPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<HokoOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,11 +33,12 @@ export default function HokoNovedadesPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await hokoFetch('/member/novelties', { method: 'POST' });
+      const res = await fetch('/api/novedades', { cache: 'no-store' });
+      const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const list = Array.isArray(data) ? data : (data.data || data.novelties || data.orders || []);
-      setOrders(list);
+      setOrders(data);
     } catch (e: any) {
+      console.error(e);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -161,7 +164,19 @@ export default function HokoNovedadesPage() {
               </div>
 
               <div className="mt-6 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                <span className="text-[10px] text-text-muted">Orden Hoko: #{o.id}</span>
+                <span className="text-[10px] text-text-muted">
+                  {((o as any).shopify_order_id && ((o as any).shopify_order_id.startsWith('gid://shopify/') || (o as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((o as any).shopify_order_id))) ? (
+                    <button
+                      onClick={() => router.push(`/pedidos/shopify/${encodeURIComponent((o as any).shopify_order_id)}`)}
+                      className="inline-flex items-center gap-1 text-brand font-black hover:underline"
+                    >
+                      <ExternalLink size={10} className="text-brand/70" />
+                      <span>Pedido: {(o as any).shopify_order_name || (o as any).shopify_order_id.split('/').pop() || (o as any).shopify_order_id} (Hoko: #{o.id})</span>
+                    </button>
+                  ) : (
+                    (o as any).shopify_order_name ? `Pedido: ${(o as any).shopify_order_name} (Hoko: #${o.id})` : `Orden Hoko: #${o.id}`
+                  )}
+                </span>
                 <Button variant="primary" size="sm" onClick={() => setSelectedOrder(o)}>
                   Dar Solución
                   <ChevronRight size={12} className="ml-1" />

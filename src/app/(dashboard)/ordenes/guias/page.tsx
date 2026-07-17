@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Truck, Search, RefreshCw, Eye } from 'lucide-react';
+import { Truck, Search, RefreshCw, Eye, ExternalLink } from 'lucide-react';
 import { HokoOrder, HOKO_GUIDE_STATES_CO } from '../../../../types';
 import { Button } from '../../../../components/shared/Button';
+import { useRouter } from 'next/navigation';
 
 export default function HokoGuiasPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<HokoOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,27 +32,12 @@ export default function HokoGuiasPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await hokoFetch('/member/order');
+      const res = await fetch('/api/pedidos', { cache: 'no-store' });
+      const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const list: HokoOrder[] = data.data || data.orders || [];
-      setOrders([]);
-
-      // Fetch details in parallel
-      await Promise.all(list.map(async (order) => {
-        try {
-          const detail = await hokoFetch(`/member/order/${order.id}`);
-          const fullOrder = { ...order, ...(detail.data || detail) };
-          if (fullOrder.guide?.number || (fullOrder as any).guide_id || (fullOrder as any).guide_number) {
-            setOrders(prev => {
-              if (prev.some(o => o.id === fullOrder.id)) return prev;
-              return [...prev, fullOrder];
-            });
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }));
+      setOrders(data);
     } catch (e: any) {
+      console.error(e);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -154,48 +141,108 @@ export default function HokoGuiasPage() {
         </div>
       ) : (
         <div className="bg-card border border-slate-200/50 dark:border-slate-800 shadow-sm rounded-xl overflow-hidden">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200/50 dark:border-slate-800 bg-card-alt text-[9px] uppercase font-black text-text-muted tracking-wider">
-                <th className="px-4 py-3">Guía Hoko</th>
-                <th className="px-4 py-3">Pedido Relacionado</th>
-                <th className="px-4 py-3">Destinatario</th>
-                <th className="px-4 py-3">Transportadora</th>
-                <th className="px-4 py-3">Estado Guía</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-text-secondary font-medium">
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200/50 dark:border-slate-800 bg-card-alt text-[9px] uppercase font-black text-text-muted tracking-wider">
+                    <th className="px-4 py-3">Guía Hoko</th>
+                    <th className="px-4 py-3">Pedido Relacionado</th>
+                    <th className="px-4 py-3">Destinatario</th>
+                    <th className="px-4 py-3">Transportadora</th>
+                    <th className="px-4 py-3">Estado Guía</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-text-secondary font-medium">
+                  {filteredOrders.map((o) => (
+                    <tr key={o.id} className="hover:bg-card-alt/50 transition-colors">
+                      <td className="px-4 py-4 font-mono font-bold text-brand">
+                        {o.guide?.number || (o as any).guide_id || 'Generando...'}
+                      </td>
+                      <td className="px-4 py-4">
+                        {((o as any).shopify_order_id && ((o as any).shopify_order_id.startsWith('gid://shopify/') || (o as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((o as any).shopify_order_id))) ? (
+                          <button
+                            onClick={() => router.push(`/pedidos/shopify/${encodeURIComponent((o as any).shopify_order_id)}`)}
+                            className="inline-flex items-center gap-1 text-brand text-xs font-bold hover:underline font-mono"
+                          >
+                            <ExternalLink size={10} className="text-brand/70" />
+                            <span>{(o as any).shopify_order_name || (o as any).shopify_order_id.split('/').pop() || (o as any).shopify_order_id}</span>
+                          </button>
+                        ) : (
+                          <span className="font-mono text-text-secondary">{(o as any).shopify_order_name || `#${o.id}`}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="font-bold text-text-primary">{o.customer?.name || 'Cliente'}</div>
+                        <div className="text-[10px] text-text-muted">{o.customer?.phone}</div>
+                      </td>
+                      <td className="px-4 py-4 text-text-secondary">
+                        {(o as any).courier?.name || `ID: ${o.courier_id}`}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${getGuideStateStyle(o.guide?.state || '1')}`}>
+                          {getGuideStateLabel(o.guide?.state || '1')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <Button variant="secondary" size="sm" onClick={() => handleViewDetails(o.id.toString())}>
+                          <Eye size={12} className="mr-1" />
+                          Ver Rastro
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/50">
               {filteredOrders.map((o) => (
-                <tr key={o.id} className="hover:bg-card-alt/50 transition-colors">
-                  <td className="px-4 py-4 font-mono font-bold text-brand">
-                    {o.guide?.number || (o as any).guide_id || 'Generando...'}
-                  </td>
-                  <td className="px-4 py-4 font-mono text-text-secondary">
-                    #{o.id}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="font-bold text-text-primary">{o.customer?.name || 'Cliente'}</div>
-                    <div className="text-[10px] text-text-muted">{o.customer?.phone}</div>
-                  </td>
-                  <td className="px-4 py-4 text-text-secondary">
-                    {(o as any).courier?.name || `ID: ${o.courier_id}`}
-                  </td>
-                  <td className="px-4 py-4">
+                <div
+                  key={o.id}
+                  className="p-4 flex flex-col gap-2.5 hover:bg-hover active:bg-hover transition-colors"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-mono font-bold text-brand">
+                      {o.guide?.number || (o as any).guide_id || 'Generando...'}
+                    </span>
                     <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${getGuideStateStyle(o.guide?.state || '1')}`}>
                       {getGuideStateLabel(o.guide?.state || '1')}
                     </span>
-                  </td>
-                  <td className="px-4 py-4 text-right">
+                  </div>
+
+                  <div className="text-[11px] text-text-secondary font-medium">
+                    <p className="font-bold text-text-primary">{o.customer?.name || 'Cliente'}</p>
+                    <p className="text-[10px] text-text-muted mt-0.5">{o.customer?.phone}</p>
+                    <p className="mt-0.5">{(o as any).courier?.name || `ID: ${o.courier_id}`}</p>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/60 text-[10px]">
+                    <div>
+                      {((o as any).shopify_order_id && ((o as any).shopify_order_id.startsWith('gid://shopify/') || (o as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((o as any).shopify_order_id))) ? (
+                        <button
+                          onClick={() => router.push(`/pedidos/shopify/${encodeURIComponent((o as any).shopify_order_id)}`)}
+                          className="inline-flex items-center gap-1 text-brand font-black hover:underline"
+                        >
+                          <ExternalLink size={10} />
+                          <span>{(o as any).shopify_order_name || (o as any).shopify_order_id.split('/').pop() || (o as any).shopify_order_id}</span>
+                        </button>
+                      ) : (
+                        <span className="font-mono text-text-secondary">{(o as any).shopify_order_name || `#${o.id}`}</span>
+                      )}
+                    </div>
                     <Button variant="secondary" size="sm" onClick={() => handleViewDetails(o.id.toString())}>
                       <Eye size={12} className="mr-1" />
                       Ver Rastro
                     </Button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         </div>
       )}
 
