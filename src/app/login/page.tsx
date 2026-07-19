@@ -128,9 +128,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-card border border-slate-200/60 dark:border-slate-850 rounded-2xl shadow-xl p-8 relative z-10">
         <div className="text-center mb-8 flex flex-col items-center">
           <img 
-            src="/logo-crm.png" 
+            src="/icono-fabrica-winners-sin-fondo.png" 
             alt="Winners Hub Logo" 
-            className="w-20 object-contain mb-3 shadow-lg shadow-brand/5"
+            className="w-20 h-20 object-cover border border-brand/10 mb-3 shadow-lg shadow-brand/5"
           />
           <h1 className="text-3xl font-extrabold text-text-primary tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 dark:from-violet-400 dark:to-indigo-400 bg-clip-text text-transparent">
             Winners Hub
