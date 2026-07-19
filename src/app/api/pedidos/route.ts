@@ -12,12 +12,23 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   logger.info('=== INICIO GET /api/pedidos (SERVER SIDE) ===');
   try {
+    const urlParams = new URL(request.url).searchParams;
+    const orderIdParam = urlParams.get('id');
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     logger.info('Consultando tabla "pedidos" en Supabase...');
-    const { data: dbPedidos, error: dbError } = await supabase
+    
+    let dbQuery = supabase
       .from('pedidos')
-      .select('*, clientes(*)')
-      .order('created_at', { ascending: false });
+      .select('*, clientes(*)');
+      
+    if (orderIdParam) {
+      dbQuery = dbQuery.eq('id', orderIdParam);
+    } else {
+      dbQuery = dbQuery.order('created_at', { ascending: false });
+    }
+
+    const { data: dbPedidos, error: dbError } = await dbQuery;
 
     if (dbError) {
       logger.error('Error al consultar Supabase pedidos:', dbError);
@@ -27,27 +38,70 @@ export async function GET(request: NextRequest) {
     logger.info(`Pedidos obtenidos de Supabase: ${dbPedidos?.length || 0} registros`);
 
     if (!dbPedidos || dbPedidos.length === 0) {
-      return NextResponse.json([]);
+      return NextResponse.json(orderIdParam ? null : []);
     }
-
-    // Map hoko_order_id
-    const dbPedidosMap = new Map();
-    const hokoIds: number[] = [];
-    dbPedidos.forEach((p: any) => {
-      if (p.hoko_order_id) {
-        const idNum = Number(p.hoko_order_id);
-        dbPedidosMap.set(idNum, p);
-        hokoIds.push(idNum);
-      }
-    });
-
-    logger.info('IDs de Hoko extraídos para consultar:', hokoIds);
 
     const orders: any[] = [];
 
-    // Fetch details from Hoko in parallel
-    await Promise.all(hokoIds.map(async (hokoId) => {
+    // Map database fields to standard response format
+    const dbOrdersList = dbPedidos.map((p: any) => {
+      const canalStr = p.clientes?.canal || 'whatsApp';
+      const cleanClienteId = p.cliente_id || '';
+      
+      let shopifyOrderId = null;
+      let shopifyOrderName = '';
+      
+      if (canalStr === 'pagina_web') {
+        if (cleanClienteId.startsWith('cliente_tienda_pedido_')) {
+          const num = cleanClienteId.replace('cliente_tienda_pedido_', '');
+          shopifyOrderId = `gid://shopify/Order/${num}`;
+          shopifyOrderName = `#${num}`;
+        } else if (/^\d+$/.test(cleanClienteId)) {
+          shopifyOrderId = `gid://shopify/Order/${cleanClienteId}`;
+          shopifyOrderName = `#${cleanClienteId}`;
+        } else {
+          shopifyOrderId = cleanClienteId;
+          shopifyOrderName = cleanClienteId.split('/').pop() || 'Shopify';
+        }
+      } else {
+        shopifyOrderName = `Chat: #${p.id}`;
+      }
+
+      return {
+        id: p.hoko_order_id || `db-${p.id}`,
+        db_id: p.id,
+        hoko_order_id: p.hoko_order_id,
+        hoko_store_id: p.hoko_store_id,
+        quantity: p.quantity || 1,
+        stock_id: p.stock_id,
+        courier_id: p.courier_id,
+        courier_name: p.courier_name,
+        payment_type: p.payment_type,
+        total_paid: p.total_paid,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+        canal: canalStr,
+        customer: {
+          name: p.clientes?.nombre || '—',
+          email: p.clientes?.email || '—',
+          phone: p.clientes?.telefono || '—',
+          address: p.clientes?.direccion || '—',
+          identification: p.clientes?.identificacion || '—',
+          city: p.clientes?.ciudad || '—',
+        },
+        shopify_order_id: shopifyOrderId,
+        shopify_order_name: shopifyOrderName,
+      };
+    });
+
+    // Fetch Hoko details in parallel for orders with hoko_order_id
+    await Promise.all(dbOrdersList.map(async (fullOrder) => {
+      if (!fullOrder.hoko_order_id) {
+        orders.push(fullOrder);
+        return;
+      }
       try {
+        const hokoId = fullOrder.hoko_order_id;
         const url = `${HOKO_BASE}/member/order/${hokoId}`;
         logger.info(`Llamando Hoko para detalle: ${url}`);
         const res = await fetch(url, {
@@ -63,56 +117,50 @@ export async function GET(request: NextRequest) {
 
         if (detail.error) {
           logger.error(`Error de Hoko para orden ${hokoId}:`, detail.error);
+          orders.push(fullOrder);
           return;
         }
 
         const hokoOrder = detail.data || detail;
-        const fullOrder = { ...hokoOrder };
+        const mergedOrder = {
+          ...fullOrder,
+          ...hokoOrder,
+          id: hokoOrder.id || fullOrder.id,
+          db_id: fullOrder.db_id,
+          canal: fullOrder.canal,
+          shopify_order_id: fullOrder.shopify_order_id,
+          shopify_order_name: fullOrder.shopify_order_name,
+        };
 
-        const dbData = dbPedidosMap.get(hokoId);
-        if (dbData) {
-          fullOrder.quantity = dbData.quantity || 1;
-          if (dbData.clientes) {
-            fullOrder.customer = {
-              ...fullOrder.customer,
-              name: dbData.clientes.nombre || fullOrder.customer?.name,
-              email: dbData.clientes.email || fullOrder.customer?.email,
-              phone: dbData.clientes.telefono || fullOrder.customer?.phone,
-              address: dbData.clientes.direccion || fullOrder.customer?.address,
-              identification: dbData.clientes.identificacion || fullOrder.customer?.identification,
-            };
-          }
-          const matches = dbData.cliente_id?.match(/pedido_(\d+)/);
-          fullOrder.shopify_order_name = matches ? `#${matches[1]}` : (dbData.cliente_id?.startsWith('cliente_tienda_pedido_') ? `#${dbData.cliente_id.replace('cliente_tienda_pedido_', '')}` : `Hoko: #${hokoId}`);
-          
-          if (dbData.cliente_id) {
-            if (/^\d+$/.test(dbData.cliente_id)) {
-              fullOrder.shopify_order_id = `gid://shopify/Order/${dbData.cliente_id}`;
-            } else {
-              fullOrder.shopify_order_id = dbData.cliente_id;
-            }
-          }
+        if (fullOrder.customer.name !== '—') {
+          mergedOrder.customer = {
+            ...mergedOrder.customer,
+            name: fullOrder.customer.name,
+            email: fullOrder.customer.email,
+            phone: fullOrder.customer.phone,
+            address: fullOrder.customer.address,
+            identification: fullOrder.customer.identification,
+            city: fullOrder.customer.city,
+          };
         }
 
-        if (fullOrder.guide?.number || fullOrder.guide_id || fullOrder.guide_number) {
-          orders.push(fullOrder);
-        }
+        orders.push(mergedOrder);
       } catch (e: any) {
-        logger.error(`Error al procesar orden ${hokoId} en servidor:`, { message: e.message, stack: e.stack });
+        logger.error(`Error al procesar orden ${fullOrder.hoko_order_id} en servidor:`, { message: e.message, stack: e.stack });
+        orders.push(fullOrder);
       }
     }));
 
     // Sort orders by created_at desc (to match DB order)
     orders.sort((a, b) => {
-      const dbA = dbPedidosMap.get(Number(a.id));
-      const dbB = dbPedidosMap.get(Number(b.id));
-      if (!dbA || !dbB) return 0;
-      return new Date(dbB.created_at).getTime() - new Date(dbA.created_at).getTime();
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-    logger.info(`Retornando ${orders.length} órdenes filtradas y enriquecidas`);
-    return new NextResponse(JSON.stringify(orders), {
-      status: 200,
+    const responsePayload = orderIdParam ? (orders[0] || null) : orders;
+    logger.info(`Retornando ${orderIdParam ? 'pedido único' : `${orders.length} pedidos unificados`}`);
+    
+    return new NextResponse(JSON.stringify(responsePayload), {
+      status: orderIdParam && !orders[0] ? 404 : 200,
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

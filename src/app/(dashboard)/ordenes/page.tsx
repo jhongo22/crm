@@ -514,30 +514,60 @@ export default function HokoPedidosPage() {
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 bg-card p-4 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
-        <div>
-          <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Total</p>
-          <span className="text-lg font-black text-text-primary">{orders.length}</span>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+            <Box size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Total Hoko</p>
+            <span className="text-base font-black text-text-primary">{orders.length}</span>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">En proceso</p>
-          <span className="text-lg font-black text-info">{orders.filter(o => o.delivery_state === '2').length}</span>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-info/10 text-info rounded-xl">
+            <RefreshCw size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">En proceso</p>
+            <span className="text-base font-black text-info">{orders.filter(o => o.delivery_state === '2').length}</span>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Despachadas</p>
-          <span className="text-lg font-black text-info">{orders.filter(o => o.delivery_state === '3').length}</span>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-info/10 text-info rounded-xl">
+            <Package size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Despachadas</p>
+            <span className="text-base font-black text-info">{orders.filter(o => o.delivery_state === '3').length}</span>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Finalizadas</p>
-          <span className="text-lg font-black text-success">{orders.filter(o => o.delivery_state === '4').length}</span>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-success/10 text-success rounded-xl">
+            <Truck size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Finalizadas</p>
+            <span className="text-base font-black text-success">{orders.filter(o => o.delivery_state === '4').length}</span>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Canceladas</p>
-          <span className="text-lg font-black text-danger">{orders.filter(o => o.delivery_state === '5').length}</span>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-danger/10 text-danger rounded-xl">
+            <X size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Canceladas</p>
+            <span className="text-base font-black text-danger">{orders.filter(o => o.delivery_state === '5').length}</span>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Novedad</p>
-          <span className="text-lg font-black text-danger">{orders.filter(o => o.delivery_state === '6').length}</span>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-warning/10 text-warning rounded-xl">
+            <ShoppingBag size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Novedades</p>
+            <span className="text-base font-black text-warning">{orders.filter(o => o.delivery_state === '6').length}</span>
+          </div>
         </div>
       </div>
 
@@ -637,7 +667,7 @@ export default function HokoPedidosPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               const destId = (order as any).shopify_order_id;
-                              router.push(`/pedidos/shopify/${encodeURIComponent(destId)}`);
+                              router.push(`/pedidos/${encodeURIComponent(destId)}`);
                             }}
                             className="inline-flex items-center gap-1 text-brand text-[10px] font-black hover:underline"
                           >
@@ -699,7 +729,7 @@ export default function HokoPedidosPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                             const destId = (order as any).shopify_order_id;
-                            router.push(`/pedidos/shopify/${encodeURIComponent(destId)}`);
+                            router.push(`/pedidos/${encodeURIComponent(destId)}`);
                           }}
                           className="inline-flex items-center gap-1 text-brand font-black hover:underline"
                         >

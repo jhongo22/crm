@@ -1,18 +1,16 @@
 "use client";
 
-import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
+const OrdersDashboard = dynamic(() => import('../../../components/orders/OrdersDashboard').then(m => m.OrdersDashboard), { ssr: false });
 
 export default function PedidosPage() {
   const router = useRouter();
 
-  useEffect(() => {
-    router.replace('/pedidos/shopify');
-  }, [router]);
-
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500"></div>
-    </div>
+    <OrdersDashboard
+      onViewOrderDetail={(id) => router.push(`/pedidos/${encodeURIComponent(id)}`)}
+    />
   );
 }

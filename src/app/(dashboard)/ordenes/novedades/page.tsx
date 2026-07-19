@@ -167,7 +167,7 @@ export default function HokoNovedadesPage() {
                 <span className="text-[10px] text-text-muted">
                   {((o as any).shopify_order_id && ((o as any).shopify_order_id.startsWith('gid://shopify/') || (o as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((o as any).shopify_order_id))) ? (
                     <button
-                      onClick={() => router.push(`/pedidos/shopify/${encodeURIComponent((o as any).shopify_order_id)}`)}
+                      onClick={() => router.push(`/pedidos/${encodeURIComponent((o as any).shopify_order_id)}`)}
                       className="inline-flex items-center gap-1 text-brand font-black hover:underline"
                     >
                       <ExternalLink size={10} className="text-brand/70" />

@@ -1,18 +1,24 @@
-import React from 'react';
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useRouter } from 'next/navigation';
 import { 
   MessageSquare, 
   TrendingUp, 
   CheckSquare, 
   Target,
-  ArrowUpRight,
-  ArrowDownLeft,
   Clock,
-  MoreVertical
+  MoreVertical,
+  DollarSign,
+  ShoppingBag,
+  Users,
+  MessageCircle,
+  RefreshCw,
+  Box,
+  Truck
 } from 'lucide-react';
 import { 
-  BarChart, 
-  Bar, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -27,112 +33,265 @@ import {
 
 export function Dashboard() {
   const { state } = useApp();
+  const router = useRouter();
+  
+  const [realOrders, setRealOrders] = useState<any[]>([]);
+  const [realClients, setRealClients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalPipeline = state.deals.reduce((acc, deal) => acc + deal.value, 0);
-  const activeConversations = state.conversations.filter(c => c.status === 'Abierta').length;
-  const pendingTasks = state.tasks.filter(t => t.status !== 'Completada').length;
-  const newLeads = state.contacts.filter(c => c.status === 'Lead').length;
+  // Fetch real data on mount
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      // 1. Fetch orders and clients
+      const [resOrders, resClients] = await Promise.all([
+        fetch('/api/pedidos', { cache: 'no-store' }),
+        fetch('/api/clientes', { cache: 'no-store' })
+      ]);
+      const dbPedidos = await resOrders.json();
+      const dataClients = await resClients.json();
+      
+      if (Array.isArray(dataClients)) {
+        setRealClients(dataClients);
+      }
 
-  const kpis = [
-    { label: 'Conversaciones activas', value: activeConversations, icon: MessageSquare, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { label: 'Leads nuevos', value: newLeads, icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-    { label: 'Tareas pendientes', value: pendingTasks, icon: CheckSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-    { label: 'Pipeline total', value: `$${(totalPipeline / 1000000).toFixed(1)}M`, icon: Target, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-  ];
+      if (Array.isArray(dbPedidos)) {
+        // 2. Fetch Shopify orders list to merge rich pricing details (totalPriceSet)
+        let shopifyOrders: any[] = [];
+        try {
+          const resShopify = await fetch('/api/shopify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: `
+                query getOrders {
+                  orders(first: 50, sortKey: CREATED_AT, reverse: true) {
+                    edges {
+                      node {
+                        id
+                        name
+                        totalPriceSet {
+                          presentmentMoney { amount currencyCode }
+                        }
+                      }
+                    }
+                  }
+                }
+              `
+            })
+          });
+          const shopifyData = await resShopify.json();
+          if (shopifyData?.data?.orders?.edges) {
+            shopifyOrders = shopifyData.data.orders.edges.map((edge: any) => edge.node);
+          }
+        } catch (e) {
+          console.error("Error fetching Shopify orders on dashboard:", e);
+        }
 
-  // Simulated data for charts
-  const conversationData = [
-    { name: 'WhatsApp', value: 8 },
-    { name: 'Email', value: 5 },
-    { name: 'Web Chat', value: 4 },
-    { name: 'Instagram', value: 3 },
-    { name: 'Facebook', value: 2 },
-  ];
+        // Map Shopify orders
+        const shopifyMap = new Map<string, any>();
+        shopifyOrders.forEach((o: any) => {
+          shopifyMap.set(o.id.toLowerCase(), o);
+          const numOnly = o.id.split('/').pop()?.toLowerCase();
+          if (numOnly) shopifyMap.set(numOnly, o);
+          shopifyMap.set(o.name.toLowerCase(), o);
+          shopifyMap.set(o.name.replace('#', '').toLowerCase(), o);
+        });
 
-  const leadsTrendData = [
-    { name: 'S1', leads: 4 },
-    { name: 'S2', leads: 7 },
-    { name: 'S3', leads: 5 },
-    { name: 'S4', leads: 9 },
-    { name: 'S5', leads: 12 },
-    { name: 'S6', leads: 8 },
-  ];
+        // Merge Shopify data into DB orders
+        const mergedOrders = dbPedidos.map((dbOrder: any) => {
+          if (dbOrder.canal === 'pagina_web') {
+            let match = null;
+            if (dbOrder.shopify_order_id) {
+              match = shopifyMap.get(dbOrder.shopify_order_id.toLowerCase());
+            }
+            if (!match && dbOrder.shopify_order_name) {
+              match = shopifyMap.get(dbOrder.shopify_order_name.toLowerCase());
+            }
+            if (match) {
+              return {
+                ...dbOrder,
+                ...match,
+                db_id: dbOrder.db_id,
+                hoko_order_id: dbOrder.hoko_order_id,
+                canal: dbOrder.canal,
+                shopify_order_name: match.name,
+                shopify_order_id: match.id,
+              };
+            }
+          }
+          return dbOrder;
+        });
+
+        setRealOrders(mergedOrders);
+      }
+    } catch (e) {
+      console.error("Error loading dashboard metrics:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const getOrderStatus = (order: any): string => {
+    if (order.cancelledAt || order.delivery_state === '5') return 'CANCELLED';
+    if (order.displayFinancialStatus === 'VOIDED') return 'VOIDED';
+    return 'ACTIVE';
+  };
+
+  const getOrderTotalVal = (order: any): number => {
+    if (order.totalPriceSet?.presentmentMoney?.amount) {
+      return parseFloat(order.totalPriceSet.presentmentMoney.amount);
+    }
+    return order.total_paid || 0;
+  };
+
+  // Calculations
+  const activeConversations = state.conversations?.filter(c => c.status === 'Abierta').length || 0;
+  
+  const totalSalesReal = realOrders
+    .filter(o => getOrderStatus(o) !== 'CANCELLED')
+    .reduce((sum, o) => sum + getOrderTotalVal(o), 0);
+
+  const totalOrdersReal = realOrders.length;
+  const totalClientsReal = realClients.length;
 
   const pipelineStages = [
-    { name: 'Nuevo', value: 40000000, color: '#3b82f6' },
-    { name: 'Contactado', value: 75000000, color: '#6366f1' },
-    { name: 'Propuesta', value: 120000000, color: '#8b5cf6' },
-    { name: 'Negociación', value: 85000000, color: '#a855f7' },
+    { name: 'Shopify Ventas', value: realOrders.filter(o => o.canal === 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#3b82f6' },
+    { name: 'WhatsApp Ventas', value: realOrders.filter(o => o.canal !== 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#10b981' },
   ];
 
-  const handleNav = (id: string) => {
-    window.dispatchEvent(new CustomEvent('nav-change', { detail: id }));
+  // Group last 7 days of orders trend
+  const getOrdersTrendData = () => {
+    const dailyMap = new Map<string, number>();
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+      dailyMap.set(dateStr, 0);
+    }
+    
+    realOrders.forEach(o => {
+      const orderDate = new Date(o.created_at);
+      const dateStr = orderDate.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+      if (dailyMap.has(dateStr)) {
+        dailyMap.set(dateStr, dailyMap.get(dateStr)! + 1);
+      }
+    });
+    
+    return Array.from(dailyMap.entries()).map(([name, count]) => ({
+      name,
+      pedidos: count
+    }));
   };
+
+  const trendData = getOrdersTrendData();
+
+  if (loading) {
+    return (
+      <div className="p-20 text-center flex flex-col items-center justify-center gap-3">
+        <RefreshCw className="animate-spin text-brand" size={32} />
+        <p className="text-text-muted font-medium text-sm">Cargando métricas del negocio...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Welcome Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight italic">¡Hola, {state.currentUser?.name.split(' ')[0]}!</h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">Aquí está lo que está pasando en Winners Hub hoy.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Aquí está lo que está pasando en Winners Hub hoy con datos reales.</p>
         </div>
         <div className="flex items-center gap-2">
            <button 
-             onClick={() => handleNav('pipeline')}
-             className="bg-blue-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow-lg shadow-blue-600/20 flex items-center gap-2 active:scale-95 transition-transform"
+             onClick={fetchDashboardData}
+             className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-text-primary border border-slate-200 dark:border-slate-800 font-bold px-4 py-2 rounded-xl text-sm flex items-center gap-2 transition-colors"
+           >
+             <RefreshCw size={14} /> Sincronizar
+           </button>
+           <button 
+             onClick={() => router.push('/pipeline')}
+             className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow-lg shadow-blue-600/20 flex items-center gap-2 active:scale-95 transition-transform"
            >
              <Target size={16} /> Nuevo negocio
            </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi, i) => (
-          <div key={i} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32 relative overflow-hidden group">
-            <div className="flex justify-between items-start z-10">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{kpi.label}</span>
-              <div className={`${kpi.bg} ${kpi.color} p-2 rounded-lg`}>
-                <kpi.icon size={18} />
-              </div>
-            </div>
-            <div className="z-10">
-              <span className="text-2xl font-black dark:text-white tracking-tighter italic">{kpi.value}</span>
-              <div className="flex items-center gap-1 text-[10px] font-bold text-green-500 mt-1">
-                <ArrowUpRight size={12} /> 12% vs mes anterior
-              </div>
-            </div>
-            <div className="absolute -right-2 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <kpi.icon size={100} />
-            </div>
+      {/* Styled KPIs Row matching Pedidos Hub */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+            <DollarSign size={18} />
           </div>
-        ))}
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Facturación Total</p>
+            <span className="text-base font-black text-text-primary">${totalSalesReal.toLocaleString('es-CO')}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-success/10 text-success rounded-xl">
+            <ShoppingBag size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Pedidos Totales</p>
+            <span className="text-base font-black text-text-primary">{totalOrdersReal}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-info/10 text-info rounded-xl">
+            <Users size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Clientes</p>
+            <span className="text-base font-black text-text-primary">{totalClientsReal}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-warning/10 text-warning rounded-xl">
+            <MessageCircle size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Chats Activos</p>
+            <span className="text-base font-black text-warning">{activeConversations}</span>
+          </div>
+        </div>
       </div>
 
+      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Chart (Order Trend Line Chart) */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="font-black text-slate-900 dark:text-white tracking-tight italic uppercase text-sm">Leads nuevos por semana</h3>
+            <h3 className="font-black text-slate-900 dark:text-white tracking-tight italic uppercase text-sm">Tendencia de Pedidos (Últimos 7 días)</h3>
             <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><MoreVertical size={16}/></button>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={leadsTrendData}>
+              <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                <YAxis hide />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#60a5fa' }}
+                  itemStyle={{ color: '#3b82f6' }}
                 />
-                <Line type="monotone" dataKey="leads" stroke="#3b82f6" strokeWidth={4} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="pedidos" stroke="#3b82f6" strokeWidth={4} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
+        {/* Right Chart (Sales Distribution Pie) */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="font-black text-slate-900 dark:text-white tracking-tight italic uppercase text-sm">Distribución Pipeline</h3>
+            <h3 className="font-black text-slate-900 dark:text-white tracking-tight italic uppercase text-sm">Ingresos por Canal</h3>
              <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><MoreVertical size={16}/></button>
           </div>
           <div className="h-64 w-full flex items-center justify-center">
@@ -149,61 +308,72 @@ export function Dashboard() {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip 
+                  formatter={(value) => `$${Number(value).toLocaleString('es-CO')}`}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
             {pipelineStages.map((s, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex items-center gap-2 font-medium text-xs">
                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }}></div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">{s.name}</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase">{s.name}: ${s.value.toLocaleString('es-CO')}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
+      {/* Urgencies and Activities */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Urgencies Box */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 overflow-hidden">
            <div className="flex items-center justify-between mb-6">
-            <h3 className="font-black text-slate-900 dark:text-white tracking-tight italic uppercase text-sm">Actividad Reciente</h3>
+            <h3 className="font-black text-slate-900 dark:text-white tracking-tight italic uppercase text-sm">Resumen de Pedidos Recientes</h3>
             <button 
-              onClick={() => handleNav('contacts')}
-              className="text-blue-600 text-xs font-bold hover:underline"
+              onClick={() => router.push('/pedidos')}
+              className="text-blue-600 text-xs font-bold hover:underline bg-transparent border-0 cursor-pointer"
             >
-              Ver todo
+              Ver pedidos Hub
             </button>
           </div>
           <div className="space-y-4">
-            {[1,2,3,4].map((item) => (
-              <div key={item} className="flex items-start gap-4 pb-4 border-b border-slate-50 last:border-0 dark:border-slate-800/50">
-                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-                  <Clock size={14} className="text-blue-600 dark:text-blue-400" />
+            {realOrders.slice(0, 4).map((order) => {
+              const clientName = order.customer?.name || 'Cliente';
+              const orderTotal = getOrderTotalVal(order);
+              const orderDate = new Date(order.created_at).toLocaleDateString('es-CO');
+              return (
+                <div key={order.db_id} className="flex items-center justify-between pb-3 border-b border-slate-50 last:border-0 dark:border-slate-800/50">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                      {order.shopify_order_name || `Pedido #${order.db_id}`}
+                    </p>
+                    <p className="text-[11px] text-slate-400 font-bold mt-0.5">{clientName} | {orderDate}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-text-primary">${orderTotal.toLocaleString('es-CO')}</span>
+                    <p className="text-[10px] font-extrabold uppercase mt-0.5 text-brand">{order.canal === 'pagina_web' ? 'Shopify' : order.canal}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                    <span className="font-bold text-slate-900 dark:text-white">Ana García</span> asignó a Diana Morales a Pedro Ruiz
-                  </p>
-                  <p className="text-[11px] text-slate-400 font-bold mt-0.5">Hace 15 minutos</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
+        {/* Tasks urgency */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 overflow-hidden">
            <div className="flex items-center justify-between mb-6">
             <h3 className="font-black text-slate-900 dark:text-white tracking-tight italic uppercase text-sm">Tareas urgentes</h3>
             <button 
-              onClick={() => handleNav('tasks')}
-              className="text-blue-600 text-xs font-bold hover:underline"
+              onClick={() => router.push('/tasks')}
+              className="text-blue-600 text-xs font-bold hover:underline bg-transparent border-0 cursor-pointer"
             >
               Ir a tareas
             </button>
           </div>
           <div className="space-y-3">
-            {state.tasks.slice(0, 4).map((task) => (
+            {state.tasks?.slice(0, 4).map((task) => (
               <div key={task.id} className="group flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
                  <div className="flex items-center gap-3 min-w-0">
                    <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>

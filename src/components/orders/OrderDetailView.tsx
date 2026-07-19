@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, RefreshCw, ShoppingBag, MapPin, User, Mail, Phone, Calendar, Clipboard, CreditCard, Box, Tag, Shield, Clock, RotateCcw, Receipt, Globe, Hash } from 'lucide-react';
-import { ShopifyOrder } from '../../types';
+import { ArrowLeft, RefreshCw, ShoppingBag, MapPin, User, Mail, Phone, Calendar, Clipboard, CreditCard, Box, Tag, Clock, RotateCcw, Receipt, Globe, Hash } from 'lucide-react';
 import { Button } from '../shared/Button';
-import { Badge } from '../shared/Badge';
+
+import { useRouter } from 'next/navigation';
 
 interface OrderDetailViewProps {
   orderId: string | null;
@@ -12,21 +12,30 @@ interface OrderDetailViewProps {
 }
 
 export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
-  const [order, setOrder] = useState<ShopifyOrder | null>(null);
+  const router = useRouter();
+  const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fulfilling, setFulfilling] = useState(false);
   const [paying, setPaying] = useState(false);
+  
+  // Note states (Shopify only)
   const [editingNote, setEditingNote] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+
+  // Customer states (Shopify only)
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [savingCustomer, setSavingCustomer] = useState(false);
+
+  // Tags states (Shopify only)
   const [editingTags, setEditingTags] = useState(false);
   const [tagsList, setTagsList] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState('');
   const [savingTags, setSavingTags] = useState(false);
+
+  // Address states (Shopify only)
   const [editingAddress, setEditingAddress] = useState(false);
   const [addressForm, setAddressForm] = useState({ firstName: '', lastName: '', company: '', address1: '', address2: '', city: '', province: '', zip: '', country: '', phone: '' });
   const [savingAddress, setSavingAddress] = useState(false);
@@ -36,194 +45,191 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     setLoading(true);
     setErrorMessage(null);
     try {
-      let resolvedId = orderId;
+      // 1. Fetch from our local pedidos API
+      const localRes = await fetch(`/api/pedidos?id=${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+      const localOrder = await localRes.json();
       
-      // If the ID is a custom string like "cliente_tienda_pedido_1021", resolve its real GID first
-      if (!resolvedId.startsWith('gid://shopify/')) {
-        const matches = resolvedId.match(/(\d+)$/);
-        const orderNum = matches ? matches[1] : resolvedId;
-        
-        const searchRes = await fetch('/api/shopify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `
-              query getOrderByQuery($query: String!) {
-                orders(first: 1, query: $query) {
-                  edges {
-                    node {
-                      id
+      if (!localOrder) {
+        setErrorMessage(`No se pudo encontrar el pedido con ID "${orderId}" en la base de datos.`);
+        setLoading(false);
+        return;
+      }
+      
+      const isShopify = localOrder.canal === 'pagina_web';
+      
+      if (isShopify && localOrder.shopify_order_id) {
+        // Fetch additional details from Shopify API
+        try {
+          const response = await fetch('/api/shopify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: `
+                query getOrderDetails($id: ID!) {
+                  order(id: $id) {
+                    id
+                    name
+                    createdAt
+                    cancelledAt
+                    displayFinancialStatus
+                    displayFulfillmentStatus
+                    tags
+                    note
+                    totalPriceSet {
+                      presentmentMoney { amount currencyCode }
                     }
+                    subtotalPriceSet {
+                      presentmentMoney { amount currencyCode }
+                    }
+                    totalShippingPriceSet {
+                      presentmentMoney { amount currencyCode }
+                    }
+                    totalTaxSet {
+                      presentmentMoney { amount currencyCode }
+                    }
+                    customer {
+                      id firstName lastName email phone numberOfOrders
+                    }
+                    shippingAddress {
+                      firstName lastName company address1 address2 city province zip country phone
+                    }
+                    lineItems(first: 50) {
+                      edges {
+                        node {
+                          id title quantity sku
+                          originalUnitPriceSet { presentmentMoney { amount currencyCode } }
+                          image { url }
+                        }
+                      }
+                    }
+                    fulfillmentOrders(first: 5) {
+                      edges { node { id status } }
+                    }
+                    paymentGatewayNames
+                    discountCodes
+                    billingAddressMatchesShippingAddress
+                    billingAddress { firstName lastName address1 address2 city province zip country phone }
+                    fullyPaid
+                    cancelReason
+                    confirmationNumber
+                    sourceName
+                    email
+                    phone
+                    poNumber
+                    clientIp
+                    shippingLine { title }
                   }
                 }
-              }
-            `,
-            variables: { query: `name:#${orderNum} OR name:${orderNum}` }
-          })
-        });
-        const searchData = await searchRes.json();
-        const foundOrder = searchData?.data?.orders?.edges?.[0]?.node;
-        if (foundOrder?.id) {
-          resolvedId = foundOrder.id;
-        } else {
-          if (/^\d+$/.test(orderNum)) {
-            resolvedId = `gid://shopify/Order/${orderNum}`;
-          } else {
-            setErrorMessage(`No se pudo encontrar el pedido "${orderId}" en Shopify.`);
+              `,
+              variables: { id: localOrder.shopify_order_id }
+            })
+          });
+          const shopifyRes = await response.json();
+          if (shopifyRes?.data?.order) {
+            // Merge Shopify details with Hoko details
+            const merged = {
+              ...shopifyRes.data.order,
+              ...localOrder,
+              id: shopifyRes.data.order.id, // keep GID for shopify actions
+              shopify_order_id: localOrder.shopify_order_id,
+              db_id: localOrder.db_id,
+              cliente_id: localOrder.cliente_id,
+              canal: localOrder.canal,
+            };
+            setOrder(merged);
             setLoading(false);
             return;
           }
+        } catch (shopifyError) {
+          console.error("Error fetching from Shopify, falling back to local data:", shopifyError);
         }
       }
-
-      const response = await fetch('/api/shopify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `
-            query getOrderDetails($id: ID!) {
-              order(id: $id) {
-                id
-                name
-                createdAt
-                cancelledAt
-                displayFinancialStatus
-                displayFulfillmentStatus
-                tags
-                note
-                totalPriceSet {
-                  presentmentMoney {
-                    amount
-                    currencyCode
-                  }
+      
+      // Fallback or Chat order (no Shopify)
+      // Construct a compatible order object from db/Hoko data
+      const mockLineItems = {
+        edges: [
+          {
+            node: {
+              id: 'mock-item-1',
+              title: localOrder.contain || 'Producto de Chat',
+              quantity: localOrder.quantity || 1,
+              sku: 'STOCK-' + (localOrder.stock_id || ''),
+              originalUnitPriceSet: {
+                presentmentMoney: {
+                  amount: String((localOrder.total_paid || 199000) / (localOrder.quantity || 1)),
+                  currencyCode: 'COP',
                 }
-                subtotalPriceSet {
-                  presentmentMoney {
-                    amount
-                    currencyCode
-                  }
-                }
-                totalShippingPriceSet {
-                  presentmentMoney {
-                    amount
-                    currencyCode
-                  }
-                }
-                totalTaxSet {
-                  presentmentMoney {
-                    amount
-                    currencyCode
-                  }
-                }
-                customer {
-                  id
-                  firstName
-                  lastName
-                  email
-                  phone
-                  numberOfOrders
-                }
-                shippingAddress {
-                  firstName
-                  lastName
-                  company
-                  address1
-                  address2
-                  city
-                  province
-                  zip
-                  country
-                  phone
-                }
-                lineItems(first: 50) {
-                  edges {
-                    node {
-                      id
-                      title
-                      quantity
-                      sku
-                      originalUnitPriceSet {
-                        presentmentMoney {
-                          amount
-                          currencyCode
-                        }
-                      }
-                      image {
-                        url
-                      }
-                    }
-                  }
-                }
-                fulfillmentOrders(first: 5) {
-                  edges {
-                    node {
-                      id
-                      status
-                    }
-                  }
-                }
-                paymentGatewayNames
-                discountCodes
-                billingAddressMatchesShippingAddress
-                billingAddress {
-                  firstName
-                  lastName
-                  address1
-                  address2
-                  city
-                  province
-                  zip
-                  country
-                  phone
-                }
-                risk {
-                  recommendation
-                }
-                fullyPaid
-                cancelReason
-                confirmationNumber
-                sourceName
-                email
-                phone
-                poNumber
-                clientIp
-                shippingLine {
-                  title
-                }
-                returns(first: 5) {
-                  edges {
-                    node {
-                      status
-                    }
-                  }
-                }
-                refunds(first: 5) {
-                  id
-                  createdAt
-                }
-                events(first: 10) {
-                  edges {
-                    node {
-                      id
-                      message
-                      createdAt
-                    }
-                  }
-                }
+              },
+              image: { 
+                url: (localOrder.stock_id === 55134 || localOrder.stock_id === 55973 || String(localOrder.stock_id) === '55134' || String(localOrder.stock_id) === '55973') 
+                  ? '/nanotrack.png' 
+                  : null 
               }
             }
-          `,
-          variables: { id: resolvedId }
-        })
-      });
-      const data = await response.json();
-      if (data?.data?.order) {
-        setOrder(data.data.order);
-      } else if (data?.errors) {
-        setErrorMessage(data.errors[0]?.message || 'Error de GraphQL');
-      } else {
-        setErrorMessage('Pedido no encontrado en Shopify');
-      }
+          }
+        ]
+      };
+      
+      const compatibleOrder: any = {
+        id: localOrder.id || `db-${localOrder.db_id}`,
+        db_id: localOrder.db_id,
+        cliente_id: localOrder.cliente_id,
+        canal: localOrder.canal,
+        name: localOrder.shopify_order_name || `Pedido #${localOrder.db_id}`,
+        createdAt: localOrder.created_at,
+        displayFinancialStatus: localOrder.displayFinancialStatus || (String(localOrder.payment_type || '').toLowerCase().includes('pagado') ? 'PAID' : 'PENDING'),
+        displayFulfillmentStatus: localOrder.displayFulfillmentStatus || (localOrder.delivery_state === '4' ? 'FULFILLED' : (localOrder.delivery_state === '2' || localOrder.delivery_state === '3' ? 'PARTIALLY_FULFILLED' : 'UNFULFILLED')),
+        tags: localOrder.tags || [],
+        note: localOrder.note || 'Pedido de Chat',
+        totalPriceSet: {
+          presentmentMoney: {
+            amount: String(localOrder.total_paid || 0),
+            currencyCode: 'COP'
+          }
+        },
+        subtotalPriceSet: {
+          presentmentMoney: {
+            amount: String(localOrder.total_paid || 0),
+            currencyCode: 'COP'
+          }
+        },
+        totalShippingPriceSet: {
+          presentmentMoney: {
+            amount: '0',
+            currencyCode: 'COP'
+          }
+        },
+        customer: {
+          id: localOrder.customer?.phone || 'chat-client',
+          firstName: localOrder.customer?.name || 'Cliente de Chat',
+          lastName: '',
+          email: localOrder.customer?.email || '',
+          phone: localOrder.customer?.phone || '',
+          numberOfOrders: 1
+        },
+        shippingAddress: {
+          firstName: localOrder.customer?.name || 'Cliente',
+          lastName: '',
+          company: '',
+          address1: localOrder.customer?.address || '',
+          address2: '',
+          city: localOrder.customer?.city || '',
+          province: '',
+          zip: '',
+          country: 'Colombia',
+          phone: localOrder.customer?.phone || ''
+        },
+        lineItems: mockLineItems,
+        fulfillmentOrders: {
+          edges: localOrder.hoko_order_id ? [{ node: { id: String(localOrder.hoko_order_id), status: 'OPEN' } }] : []
+        },
+        paymentGatewayNames: [localOrder.payment_type || 'Manual'],
+        fullyPaid: String(localOrder.payment_type || '').toLowerCase().includes('pagado'),
+        sourceName: localOrder.canal || 'whatsApp'
+      };
+      
+      setOrder(compatibleOrder);
     } catch (error: any) {
       setErrorMessage(error.message || 'Error de conexión');
     } finally {
@@ -252,24 +258,14 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
           query: `
             mutation fulfillmentCreate($fulfillment: FulfillmentInput!) {
               fulfillmentCreate(fulfillment: $fulfillment) {
-                fulfillment {
-                  id
-                  status
-                }
-                userErrors {
-                  field
-                  message
-                }
+                fulfillment { id status }
+                userErrors { field message }
               }
             }
           `,
           variables: {
             fulfillment: {
-              lineItemsByFulfillmentOrder: [
-                {
-                  fulfillmentOrderId: fulfillmentOrderId
-                }
-              ],
+              lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: fulfillmentOrderId }],
               notifyCustomer: false
             }
           }
@@ -303,14 +299,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
           query: `
             mutation orderMarkAsPaid($id: ID!) {
               orderMarkAsPaid(input: { id: $id }) {
-                order {
-                  id
-                  displayFinancialStatus
-                }
-                userErrors {
-                  field
-                  message
-                }
+                order { id displayFinancialStatus }
+                userErrors { field message }
               }
             }
           `,
@@ -343,7 +333,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
           query: `
             mutation orderUpdate($input: OrderInput!) {
               orderUpdate(input: $input) {
-                order { id note tags }
+                order { id note }
                 userErrors { field message }
               }
             }
@@ -523,51 +513,12 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
       'cash_on_delivery': 'Contra reembolso',
       'visa': 'Visa',
       'mastercard': 'Mastercard',
-      'amex': 'American Express',
       'paypal': 'PayPal',
-      'paypal_express': 'PayPal Express',
       'nequi': 'Nequi',
       'bancolombia': 'Bancolombia',
-      'daviplata': 'DaviPlata',
       'pse': 'PSE',
-      'mercado_pago': 'Mercado Pago',
-      'mercadopago': 'Mercado Pago',
-      'wompi': 'Wompi',
-      'epayco': 'ePayco',
-      'place_to_pay': 'Place to Pay',
-      'addi': 'Addi',
-      'sistecredito': 'SisteCrédito',
     };
     return map[name] || name;
-  };
-
-  const translateEventMessage = (msg: string): string => {
-    const map: Record<string, string> = {
-      'Fulfilled': 'Preparado',
-      'Unfulfilled': 'No preparado',
-      'Paid': 'Pagado',
-      'Refunded': 'Reembolsado',
-      'Partially refunded': 'Parcialmente reembolsado',
-      'Canceled': 'Cancelado',
-      'Cancelled': 'Cancelado',
-      'Restocked': 'Reabastecido',
-    };
-    return map[msg] || msg;
-  };
-
-  const translateSourceName = (name: string): string => {
-    const map: Record<string, string> = {
-      'web': 'Web',
-      'shopify_draft_order': 'Borrador Shopify',
-      'pos': 'POS',
-      'facebook': 'Facebook',
-      'instagram': 'Instagram',
-      'tiktok': 'TikTok',
-      'whatsapp': 'WhatsApp',
-      'manual': 'Manual',
-    };
-    const key = name.replace(/_/g, ' ').toLowerCase();
-    return map[name] || map[key] || name.replace(/_/g, ' ');
   };
 
   if (loading) {
@@ -592,9 +543,10 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     );
   }
 
+  const isShopify = order.canal === 'pagina_web';
   const payment = getFinancialStatusLabel(order.displayFinancialStatus);
   const fulfillment = getFulfillmentStatusLabel(order.displayFulfillmentStatus);
-  const totalItems = order.lineItems.edges.reduce((sum, edge) => sum + edge.node.quantity, 0);
+  const totalItems = order.lineItems?.edges?.reduce((sum: number, edge: any) => sum + (edge.node.quantity || 1), 0) || 1;
 
   return (
     <div className="space-y-3 w-full px-4 md:px-6 py-2 animate-in fade-in duration-500">
@@ -623,6 +575,9 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             <span className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-full ${fulfillment.class}`}>
               {fulfillment.text}
             </span>
+            <span className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-md border ${isShopify ? 'bg-brand/10 border-brand/20 text-brand' : 'bg-success/10 border-success/20 text-success'}`}>
+              {isShopify ? 'Shopify' : order.canal}
+            </span>
           </div>
           <p className="text-text-muted text-xs font-medium mt-1.5 flex items-center gap-1.5">
             <Calendar size={13} />
@@ -633,17 +588,11 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 <span className="font-bold">{order.confirmationNumber}</span>
               </span>
             )}
-            {order.sourceName && (
-              <span className="ml-2 flex items-center gap-1">
-                <Globe size={11} />
-                <span className="capitalize">{translateSourceName(order.sourceName)}</span>
-              </span>
-            )}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {order.displayFulfillmentStatus === 'UNFULFILLED' && (
+          {isShopify && order.displayFulfillmentStatus === 'UNFULFILLED' && (
             <Button 
               variant="primary" 
               onClick={handleFulfill} 
@@ -680,18 +629,20 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-bg rounded-xl border border-brand/15">
-                    <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-                    <span className="text-[10px] font-black text-brand uppercase tracking-wider">inventarioHoko</span>
+                {order.hoko_order_id && (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-bg rounded-xl border border-brand/15">
+                      <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+                      <span className="text-[10px] font-black text-brand uppercase tracking-wider">Hoko: #{order.hoko_order_id}</span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
             {/* Line Items */}
             <div className="px-6 py-3 space-y-1">
-              {order.lineItems.edges.map((edge) => {
+              {order.lineItems?.edges?.map((edge: any) => {
                 const item = edge.node;
                 return (
                   <div key={item.id} className="group rounded-2xl bg-card-alt/50 hover:bg-card-alt transition-colors px-4 py-3 flex gap-4 items-center">
@@ -699,7 +650,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                       {item.image?.url ? (
                         <img src={item.image.url} alt={item.title} className="w-full h-full object-cover" />
                       ) : (
-                        <ShoppingBag className="text-text-muted/30" size={18} />
+                        <img src="/nanotrack.png" alt={item.title} className="w-full h-full object-cover" />
                       )}
                     </div>
 
@@ -719,7 +670,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
 
                     <div className="text-right shrink-0">
                       <p className="text-sm font-black text-text-primary">
-                        {formatPrice(item.originalUnitPriceSet.presentmentMoney.amount)}
+                        {formatPrice(item.originalUnitPriceSet?.presentmentMoney?.amount)}
                       </p>
                     </div>
                   </div>
@@ -728,33 +679,25 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             </div>
             
             {/* Actions */}
-            <div className="px-6 py-4 bg-gradient-to-r from-brand/5 to-transparent border-t border-slate-100 dark:border-slate-800/50">
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {order.displayFinancialStatus === 'PENDING' && (
-                  <Button 
-                    variant="outline" 
-                    onClick={handleMarkAsPaid} 
-                    disabled={paying}
-                    className="h-9 text-[11px] font-black uppercase tracking-wider px-4"
-                  >
-                    {paying ? 'Procesando...' : 'Marcar como pagado'}
-                  </Button>
-                )}
-                {order.displayFulfillmentStatus === 'UNFULFILLED' && (
-                  <Button 
-                    variant="primary" 
-                    onClick={handleFulfill}
-                    disabled={fulfilling} 
-                    className="h-9 text-[11px] font-black uppercase tracking-wider px-4"
-                  >
-                    {fulfilling ? 'Preparando...' : 'Marcar como preparado'}
-                  </Button>
-                )}
+            {isShopify && (
+              <div className="px-6 py-4 bg-gradient-to-r from-brand/5 to-transparent border-t border-slate-100 dark:border-slate-800/50">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {order.displayFinancialStatus === 'PENDING' && (
+                    <Button 
+                      variant="outline" 
+                      onClick={handleMarkAsPaid} 
+                      disabled={paying}
+                      className="h-9 text-[11px] font-black uppercase tracking-wider px-4"
+                    >
+                      {paying ? 'Procesando...' : 'Marcar como pagado'}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Pricing Summary Box */}
+          {/* Pricing Box */}
           <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-4">
             <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center gap-2">
               <CreditCard size={15} className="text-text-muted" />
@@ -764,15 +707,15 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             <div className="space-y-2 text-xs font-medium text-text-secondary">
               <div className="flex justify-between">
                 <span>Subtotal ({totalItems} {totalItems === 1 ? 'artículo' : 'artículos'})</span>
-                <span className="text-text-primary font-bold">{formatPrice(order.subtotalPriceSet?.presentmentMoney.amount)}</span>
+                <span className="text-text-primary font-bold">{formatPrice(order.subtotalPriceSet?.presentmentMoney?.amount)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Envío</span>
-                <span className="text-text-primary font-bold">{formatPrice(order.totalShippingPriceSet?.presentmentMoney.amount)}</span>
+                <span className="text-text-primary font-bold">{formatPrice(order.totalShippingPriceSet?.presentmentMoney?.amount)}</span>
               </div>
               <div className="flex justify-between border-t border-slate-100 dark:border-slate-800/50 pt-3 text-sm font-black text-text-primary">
                 <span>Total</span>
-                <span>{formatPrice(order.totalPriceSet.presentmentMoney.amount)}</span>
+                <span>{formatPrice(order.totalPriceSet?.presentmentMoney?.amount)}</span>
               </div>
             </div>
 
@@ -783,112 +726,51 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                   <span className="text-text-primary font-bold text-right">{order.paymentGatewayNames.map(translateGatewayName).join(', ')}</span>
                 </div>
               )}
-              {order.discountCodes && order.discountCodes.length > 0 && (
-                <div className="flex justify-between">
-                  <span>Códigos de descuento</span>
-                  <span className="text-text-primary font-bold text-right">{order.discountCodes.join(', ')}</span>
-                </div>
-              )}
-              {order.fullyPaid !== undefined && (
-                <div className="flex justify-between">
-                  <span>Pagado completo</span>
-                  <span className={`font-bold ${order.fullyPaid ? 'text-success' : 'text-warning'}`}>
-                    {order.fullyPaid ? 'Sí' : 'No'}
-                  </span>
-                </div>
-              )}
-              {order.poNumber && (
-                <div className="flex justify-between">
-                  <span>Orden de compra</span>
-                  <span className="text-text-primary font-bold">{order.poNumber}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-between items-center bg-card-alt p-4 rounded-2xl border border-slate-200/50 dark:border-slate-800">
-              <div>
-                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Pagado por el cliente</p>
-                <p className="text-base font-black text-text-primary mt-0.5">
-                  {order.displayFinancialStatus === 'PAID' ? formatPrice(order.totalPriceSet.presentmentMoney.amount) : '$0'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Saldo pendiente</p>
-                <p className="text-base font-black text-text-primary mt-0.5 text-right">
-                  {order.displayFinancialStatus === 'PAID' ? '$0' : formatPrice(order.totalPriceSet.presentmentMoney.amount)}
-                </p>
-              </div>
             </div>
           </div>
-
-          {/* Timeline Events Box */}
-          {order.events?.edges && order.events.edges.length > 0 && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center gap-2">
-                <Clock size={15} className="text-text-muted" />
-                <span>Cronología</span>
-              </h3>
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {[...order.events.edges].reverse().map((ev) => (
-                  <div key={ev.node.id} className="flex gap-3 text-xs">
-                    <div className="shrink-0 w-0.5 bg-slate-200 dark:bg-slate-700 rounded-full" />
-                    <div>
-                      <p className="text-[10px] font-bold text-text-muted">
-                        {new Date(ev.node.createdAt).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
-                      </p>
-                      {ev.node.message ? (
-                        <p className="font-medium text-text-secondary mt-0.5">{translateEventMessage(ev.node.message)}</p>
-                      ) : (
-                        <p className="text-text-muted italic">Evento registrado</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
         </div>
 
         {/* Right Column */}
         <div className="space-y-6">
           
-          {/* Notes Box */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-            <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center justify-between">
-              <span>Notas del pedido</span>
-              <Clipboard size={14} className="text-text-muted" />
-            </h3>
-            {editingNote ? (
-              <div className="space-y-2">
-                <textarea
-                  className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl p-3 resize-none focus:outline-none focus:border-brand"
-                  rows={3}
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Agregar nota..."
-                />
-                <div className="flex gap-2 justify-end">
-                  <Button variant="ghost" onClick={() => setEditingNote(false)} className="h-8 text-[10px]">Cancelar</Button>
-                  <Button variant="primary" onClick={handleSaveNote} disabled={savingNote} className="h-8 text-[10px]">
-                    {savingNote ? 'Guardando...' : 'Guardar nota'}
-                  </Button>
+          {/* Notes Box (Shopify only) */}
+          {isShopify && (
+            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
+              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center justify-between">
+                <span>Notas del pedido</span>
+                <Clipboard size={14} className="text-text-muted" />
+              </h3>
+              {editingNote ? (
+                <div className="space-y-2">
+                  <textarea
+                    className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl p-3 resize-none focus:outline-none focus:border-brand"
+                    rows={3}
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="Agregar nota..."
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="ghost" onClick={() => setEditingNote(false)} className="h-8 text-[10px]">Cancelar</Button>
+                    <Button variant="primary" onClick={handleSaveNote} disabled={savingNote} className="h-8 text-[10px]">
+                      {savingNote ? 'Guardando...' : 'Guardar nota'}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-xs text-text-muted font-medium italic flex-1">
-                  {order.note || 'No hay notas.'}
-                </p>
-                <button
-                  onClick={() => { setNoteText(order.note || ''); setEditingNote(true); }}
-                  className="shrink-0 text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
-                >
-                  Editar
-                </button>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs text-text-muted font-medium italic flex-1">
+                    {order.note || 'No hay notas.'}
+                  </p>
+                  <button
+                    onClick={() => { setNoteText(order.note || ''); setEditingNote(true); }}
+                    className="shrink-0 text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
+                  >
+                    Editar
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Shipping Address Box */}
           {order.shippingAddress && (
@@ -898,7 +780,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                   <MapPin size={15} className="text-text-muted" />
                   <span>Dirección de envío</span>
                 </div>
-                {!editingAddress && (
+                {isShopify && !editingAddress && (
                   <button
                     onClick={() => {
                       setAddressForm({
@@ -922,7 +804,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 )}
               </h3>
 
-              {editingAddress ? (
+              {isShopify && editingAddress ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -943,27 +825,11 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     </div>
                   </div>
                   <div>
-                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Empresa</label>
-                    <input
-                      className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                      value={addressForm.company}
-                      onChange={(e) => setAddressForm(f => ({ ...f, company: e.target.value }))}
-                    />
-                  </div>
-                  <div>
                     <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Dirección</label>
                     <input
                       className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
                       value={addressForm.address1}
                       onChange={(e) => setAddressForm(f => ({ ...f, address1: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Apartamento, local, etc.</label>
-                    <input
-                      className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                      value={addressForm.address2}
-                      onChange={(e) => setAddressForm(f => ({ ...f, address2: e.target.value }))}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -976,39 +842,13 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Provincia</label>
+                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Teléfono</label>
                       <input
                         className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={addressForm.province}
-                        onChange={(e) => setAddressForm(f => ({ ...f, province: e.target.value }))}
+                        value={addressForm.phone}
+                        onChange={(e) => setAddressForm(f => ({ ...f, phone: e.target.value }))}
                       />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Código postal</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={addressForm.zip}
-                        onChange={(e) => setAddressForm(f => ({ ...f, zip: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">País</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={addressForm.country}
-                        onChange={(e) => setAddressForm(f => ({ ...f, country: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Teléfono</label>
-                    <input
-                      className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                      value={addressForm.phone}
-                      onChange={(e) => setAddressForm(f => ({ ...f, phone: e.target.value }))}
-                    />
                   </div>
                   <div className="flex gap-2 justify-end pt-1">
                     <Button variant="ghost" onClick={() => setEditingAddress(false)} className="h-8 text-[10px]">Cancelar</Button>
@@ -1022,11 +862,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                   <p className="font-black text-text-primary">
                     {order.shippingAddress.firstName} {order.shippingAddress.lastName}
                   </p>
-                  {order.shippingAddress.company && <p className="text-text-muted">{order.shippingAddress.company}</p>}
                   <p>{order.shippingAddress.address1}</p>
-                  {order.shippingAddress.address2 && <p>{order.shippingAddress.address2}</p>}
-                  <p>{order.shippingAddress.city}, {order.shippingAddress.province || ''}</p>
-                  <p>{order.shippingAddress.country} {order.shippingAddress.zip ? `- ${order.shippingAddress.zip}` : ''}</p>
+                  <p>{order.shippingAddress.city}</p>
                   {order.shippingAddress.phone && (
                     <p className="pt-2 flex items-center gap-1.5">
                       <Phone size={11} className="text-text-muted" />
@@ -1042,7 +879,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
           <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-4">
             <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center justify-between">
               <span>Cliente</span>
-              {order.customer && !editingCustomer && (
+              {isShopify && order.customer && !editingCustomer && (
                 <button
                   onClick={() => {
                     setCustomerForm({
@@ -1061,7 +898,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             </h3>
 
             {order.customer ? (
-              editingCustomer ? (
+              isShopify && editingCustomer ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -1089,14 +926,6 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                       onChange={(e) => setCustomerForm(f => ({ ...f, email: e.target.value }))}
                     />
                   </div>
-                  <div>
-                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Teléfono</label>
-                    <input
-                      className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                      value={customerForm.phone}
-                      onChange={(e) => setCustomerForm(f => ({ ...f, phone: e.target.value }))}
-                    />
-                  </div>
                   <div className="flex gap-2 justify-end pt-1">
                     <Button variant="ghost" onClick={() => setEditingCustomer(false)} className="h-8 text-[10px]">Cancelar</Button>
                     <Button variant="primary" onClick={handleSaveCustomer} disabled={savingCustomer} className="h-8 text-[10px]">
@@ -1121,16 +950,27 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                   </div>
 
                   <div className="space-y-2.5 pt-2">
-                    <div className="flex items-center gap-2.5">
-                      <Mail size={13} className="text-text-muted shrink-0" />
-                      <span className="truncate">{order.customer.email}</span>
-                    </div>
+                    {order.customer.email && (
+                      <div className="flex items-center gap-2.5">
+                        <Mail size={13} className="text-text-muted shrink-0" />
+                        <span className="truncate">{order.customer.email}</span>
+                      </div>
+                    )}
                     {order.customer.phone && (
                       <div className="flex items-center gap-2.5">
                         <Phone size={13} className="text-text-muted shrink-0" />
                         <span>{order.customer.phone}</span>
                       </div>
                     )}
+                  </div>
+                  <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800/50">
+                    <Button
+                      variant="ghost"
+                      onClick={() => router.push(`/contacts?id=${encodeURIComponent(order.cliente_id || order.customer?.phone || '')}`)}
+                      className="text-[10px] font-bold text-brand hover:text-brand/80 hover:bg-transparent p-0 h-auto"
+                    >
+                      Ver Perfil del Cliente &rarr;
+                    </Button>
                   </div>
                 </div>
               )
@@ -1140,86 +980,88 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
           </div>
 
           {/* Tags Box */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-            <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tag size={13} className="text-text-muted" />
-                <span>Etiquetas</span>
-              </div>
-              {!editingTags && (
-                <button
-                  onClick={() => {
-                    const current = Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map(t => t.trim()).filter(Boolean) : []);
-                    setTagsList(current);
-                    setEditingTags(true);
-                  }}
-                  className="text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
-                >
-                  Editar
-                </button>
-              )}
-            </h3>
-            {editingTags ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {tagsList.map((tag, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-brand-bg text-brand text-[10px] font-black uppercase rounded-lg">
-                      {tag}
-                      <button
-                        onClick={() => setTagsList(prev => prev.filter((_, idx) => idx !== i))}
-                        className="hover:text-danger ml-0.5"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+          {isShopify && (
+            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
+              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag size={13} className="text-text-muted" />
+                  <span>Etiquetas</span>
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    className="flex-1 text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand"
-                    placeholder="Agregar etiqueta..."
-                    value={newTagInput}
-                    onChange={(e) => setNewTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newTagInput.trim()) {
-                        setTagsList(prev => [...prev, newTagInput.trim()]);
-                        setNewTagInput('');
-                      }
-                    }}
-                  />
+                {!editingTags && (
                   <button
                     onClick={() => {
-                      if (newTagInput.trim()) {
-                        setTagsList(prev => [...prev, newTagInput.trim()]);
-                        setNewTagInput('');
-                      }
+                      const current = Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []);
+                      setTagsList(current);
+                      setEditingTags(true);
                     }}
-                    className="px-3 py-2 bg-brand text-white text-[10px] font-black uppercase rounded-xl hover:bg-brand/90"
+                    className="text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
                   >
-                    +
+                    Editar
                   </button>
-                </div>
-                <div className="flex gap-2 justify-end pt-1">
-                  <Button variant="ghost" onClick={() => { setEditingTags(false); setNewTagInput(''); }} className="h-8 text-[10px]">Cancelar</Button>
-                  <Button variant="primary" onClick={handleSaveTags} disabled={savingTags} className="h-8 text-[10px]">
-                    {savingTags ? 'Guardando...' : 'Guardar'}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {(Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map(t => t.trim()).filter(Boolean) : [])).length > 0 ? (
-                  (Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map(t => t.trim()).filter(Boolean) : [])).map((tag, i) => (
-                    <span key={i} className="inline-flex items-center gap-0.5 px-2 py-1 bg-brand-bg text-brand text-[10px] font-black uppercase rounded-lg">
-                      {tag}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-[10px] text-text-muted italic">Sin etiquetas</p>
                 )}
-              </div>
-            )}
-          </div>
+              </h3>
+              {editingTags ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {tagsList.map((tag, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-brand-bg text-brand text-[10px] font-black uppercase rounded-lg">
+                        {tag}
+                        <button
+                          onClick={() => setTagsList(prev => prev.filter((_, idx) => idx !== i))}
+                          className="hover:text-danger ml-0.5"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand"
+                      placeholder="Agregar etiqueta..."
+                      value={newTagInput}
+                      onChange={(e) => setNewTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newTagInput.trim()) {
+                          setTagsList(prev => [...prev, newTagInput.trim()]);
+                          setNewTagInput('');
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (newTagInput.trim()) {
+                          setTagsList(prev => [...prev, newTagInput.trim()]);
+                          setNewTagInput('');
+                        }
+                      }}
+                      className="px-3 py-2 bg-brand text-white text-[10px] font-black uppercase rounded-xl hover:bg-brand/90"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex gap-2 justify-end pt-1">
+                    <Button variant="ghost" onClick={() => { setEditingTags(false); setNewTagInput(''); }} className="h-8 text-[10px]">Cancelar</Button>
+                    <Button variant="primary" onClick={handleSaveTags} disabled={savingTags} className="h-8 text-[10px]">
+                      {savingTags ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {(Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [])).length > 0 ? (
+                    (Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [])).map((tag: string, i: number) => (
+                      <span key={i} className="inline-flex items-center gap-0.5 px-2 py-1 bg-brand-bg text-brand text-[10px] font-black uppercase rounded-lg">
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-[10px] text-text-muted italic">Sin etiquetas</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Channel Info Box */}
           <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
@@ -1228,113 +1070,11 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             </h3>
             <div className="p-3 bg-card-alt rounded-2xl border border-slate-200/50 dark:border-slate-800">
               <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Canal de ventas</p>
-              <p className="text-xs font-black text-text-primary mt-1">
-                {order.channelInformation?.channelDefinition?.channelName || 'Pedidos preliminares'}
+              <p className="text-xs font-black text-text-primary mt-1 uppercase">
+                {order.canal === 'pagina_web' ? 'Shopify (Tienda Online)' : order.canal}
               </p>
             </div>
-            {order.risk?.recommendation && (
-              <div className="flex items-center justify-between p-3 bg-card-alt rounded-2xl border border-slate-200/50 dark:border-slate-800">
-                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Riesgo</p>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                  order.risk.recommendation === 'CANCEL' ? 'bg-danger-bg text-danger' :
-                  order.risk.recommendation === 'INVESTIGATE' ? 'bg-warning-bg text-warning' :
-                  'bg-success-bg text-success'
-                }`}>
-                  {order.risk.recommendation === 'CANCEL' ? 'Cancelar' :
-                   order.risk.recommendation === 'INVESTIGATE' ? 'Investigar' :
-                   order.risk.recommendation === 'ACCEPT' ? 'Aceptar' :
-                   order.risk.recommendation}
-                </span>
-              </div>
-            )}
           </div>
-
-          {/* Billing Address Box */}
-          {order.billingAddress && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center gap-2">
-                <Receipt size={15} className="text-text-muted" />
-                <span>Dirección de facturación</span>
-              </h3>
-
-              {order.billingAddressMatchesShippingAddress !== undefined && order.billingAddressMatchesShippingAddress ? (
-                <p className="text-[11px] text-text-muted italic font-medium">Igual que la dirección de envío</p>
-              ) : (
-                <div className="text-xs text-text-secondary space-y-1 font-medium">
-                  <p className="font-black text-text-primary">
-                    {order.billingAddress.firstName} {order.billingAddress.lastName}
-                  </p>
-                  <p>{order.billingAddress.address1}</p>
-                  {order.billingAddress.address2 && <p>{order.billingAddress.address2}</p>}
-                  <p>{order.billingAddress.city}, {order.billingAddress.province || ''}</p>
-                  <p>{order.billingAddress.country} {order.billingAddress.zip ? `- ${order.billingAddress.zip}` : ''}</p>
-                  {order.billingAddress.phone && (
-                    <p className="pt-2 flex items-center gap-1.5">
-                      <Phone size={11} className="text-text-muted" />
-                      <span>{order.billingAddress.phone}</span>
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Cancel Reason */}
-          {order.cancelReason && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <RotateCcw size={14} className="text-text-muted" />
-                <span>Razón de cancelación</span>
-              </h3>
-              <p className="text-xs font-bold text-danger capitalize">
-                {order.cancelReason.replace(/_/g, ' ').toLowerCase()}
-              </p>
-            </div>
-          )}
-
-          {/* Returns Box */}
-          {order.returns?.edges && order.returns.edges.length > 0 && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <RotateCcw size={14} className="text-text-muted" />
-                <span>Devoluciones</span>
-              </h3>
-              <div className="space-y-2">
-                {order.returns.edges.map((ret, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs font-medium">
-                    <span className="text-text-muted">Devolución #{i + 1}</span>
-                    <span className={`font-bold uppercase text-[10px] ${
-                      ret.node.status === 'OPEN' ? 'text-warning' :
-                      ret.node.status === 'COMPLETED' ? 'text-success' :
-                      'text-text-muted'
-                    }`}>
-                      {ret.node.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Refunds Box */}
-          {order.refunds && order.refunds.length > 0 && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <Receipt size={14} className="text-text-muted" />
-                <span>Reembolsos</span>
-              </h3>
-              <div className="space-y-2">
-                {order.refunds.map((ref, i) => (
-                  <div key={ref.id} className="flex items-center justify-between text-xs font-medium">
-                    <span className="text-text-muted">Reembolso #{i + 1}</span>
-                    <span className="text-[10px] text-text-muted">
-                      {new Date(ref.createdAt).toLocaleDateString('es-CO')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
         </div>
 

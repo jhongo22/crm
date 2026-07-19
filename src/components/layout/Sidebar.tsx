@@ -42,6 +42,7 @@ const routeMap: Record<string, string> = {
   admin: '/admin',
   reports: '/reports',
   settings: '/settings',
+  pedidos: '/pedidos',
 };
 
 import { supabase } from '../../lib/supabaseClient';
@@ -97,10 +98,7 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
           id: 'pedidos',
           label: 'Pedidos',
           icon: ClipboardList,
-          subItems: [
-            { id: 'orders-shopify', label: 'Shopify', path: '/pedidos/shopify' },
-            { id: 'orders-chat', label: 'Chat', path: '/pedidos/chat' },
-          ]
+          path: '/pedidos'
         },
       ]
     },
@@ -109,7 +107,7 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
       items: [
         {
           id: 'ordenes',
-          label: 'Ordenes',
+          label: 'HOKO',
           icon: Box,
           subItems: [
             { id: 'orders-list', label: 'Ordenes', path: '/ordenes' },
@@ -125,7 +123,7 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
     {
       title: "Ventas",
       items: [
-        { id: 'contacts', label: 'Contactos', icon: Users },
+        { id: 'contacts', label: 'Clientes', icon: Users },
         { id: 'pipeline', label: 'Pipeline', icon: Trello },
       ]
     },

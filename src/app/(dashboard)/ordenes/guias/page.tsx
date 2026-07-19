@@ -91,7 +91,8 @@ export default function HokoGuiasPage() {
   };
 
   const filteredOrders = orders.filter((o) => {
-    const num = (o.guide?.number || (o as any).guide_id || '').toString().toLowerCase();
+    if (!o.guide?.number && !(o as any).guide_id && !(o as any).guide_number) return false;
+    const num = (o.guide?.number || (o as any).guide_id || (o as any).guide_number || '').toString().toLowerCase();
     const name = (o.customer?.name || '').toLowerCase();
     const query = searchQuery.toLowerCase();
     return num.includes(query) || name.includes(query);
@@ -164,7 +165,7 @@ export default function HokoGuiasPage() {
                       <td className="px-4 py-4">
                         {((o as any).shopify_order_id && ((o as any).shopify_order_id.startsWith('gid://shopify/') || (o as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((o as any).shopify_order_id))) ? (
                           <button
-                            onClick={() => router.push(`/pedidos/shopify/${encodeURIComponent((o as any).shopify_order_id)}`)}
+                            onClick={() => router.push(`/pedidos/${encodeURIComponent((o as any).shopify_order_id)}`)}
                             className="inline-flex items-center gap-1 text-brand text-xs font-bold hover:underline font-mono"
                           >
                             <ExternalLink size={10} className="text-brand/70" />
@@ -224,7 +225,7 @@ export default function HokoGuiasPage() {
                     <div>
                       {((o as any).shopify_order_id && ((o as any).shopify_order_id.startsWith('gid://shopify/') || (o as any).shopify_order_id.startsWith('cliente_tienda_pedido_') || /^\d+$/.test((o as any).shopify_order_id))) ? (
                         <button
-                          onClick={() => router.push(`/pedidos/shopify/${encodeURIComponent((o as any).shopify_order_id)}`)}
+                          onClick={() => router.push(`/pedidos/${encodeURIComponent((o as any).shopify_order_id)}`)}
                           className="inline-flex items-center gap-1 text-brand font-black hover:underline"
                         >
                           <ExternalLink size={10} />

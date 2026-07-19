@@ -43,8 +43,7 @@ const allGroups = [
   {
     title: 'Pedidos',
     items: [
-      { id: 'pedidos-shopify', label: 'Shopify', icon: ShoppingCart, path: '/pedidos/shopify' },
-      { id: 'pedidos-chat', label: 'Chat', icon: MessageCircle, path: '/pedidos/chat' },
+      { id: 'pedidos', label: 'Pedidos', icon: ShoppingCart, path: '/pedidos' },
     ],
   },
   {
@@ -61,7 +60,7 @@ const allGroups = [
   {
     title: 'Ventas',
     items: [
-      { id: 'contacts', label: 'Contactos', icon: Users, path: '/contacts' },
+      { id: 'contacts', label: 'Clientes', icon: Users, path: '/contacts' },
       { id: 'pipeline', label: 'Pipeline', icon: Trello, path: '/pipeline' },
     ],
   },
