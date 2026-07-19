@@ -13,19 +13,19 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['business', 'productivity'],
     icons: [
       {
-        src: '/icono-fabrica-winners.png',
+        src: '/logo-crm.png',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: '/icono-fabrica-winners.png',
+        src: '/logo-crm.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/icono-fabrica-winners-sin-fondo.png',
+        src: '/logo-crm.png',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any',
